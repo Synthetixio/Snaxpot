@@ -71,6 +71,7 @@ interface ISnaxpot {
     // ─── Admin ───────────────────────────────────────────────────────
     // function rescueToken(address token, address to, uint256 amount) external;
     // function reconcileUSDT() external;
+    // function setJackpotClaimer(address _jackpotClaimer) external;
     // function pause() external;
     // function unpause() external;
 

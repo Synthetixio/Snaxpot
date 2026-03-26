@@ -28,7 +28,7 @@ contract Snaxpot is
     uint8 public constant BALL_MAX = 32;
     uint8 public constant SNAX_BALL_MAX = 5;
 
-    // ─── External contracts (set once at initialize) ─────────────────
+    // ─── External contracts ────────────────────────────────────────────
     IERC20 public usdt;
     IJackpotClaimer public jackpotClaimer;
 
@@ -58,8 +58,19 @@ contract Snaxpot is
         _disableInitializers();
     }
 
-    function initialize() external initializer {
-        // TODO
+    function initialize(
+        address _admin,
+        address _operator,
+        address _usdt,
+        address _jackpotClaimer
+    ) external initializer {
+        __AccessControl_init();
+
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(OPERATOR_ROLE, _operator);
+
+        usdt = IERC20(_usdt);
+        jackpotClaimer = IJackpotClaimer(_jackpotClaimer);
     }
 
     function _authorizeUpgrade(
