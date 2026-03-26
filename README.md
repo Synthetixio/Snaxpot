@@ -52,10 +52,10 @@ This repository contains **only the on-chain contracts**. The off-chain ticket e
 
 Two roles minimum, enforced via OpenZeppelin `AccessControl` (or equivalent):
 
-| Role         | Permissions                                                                                                                                                 |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **ADMIN**    | Upgrade contracts (UUPS), grant/revoke roles, set protocol parameters (VRF config, fee splits, merkle window), pause/unpause, `rescueToken` (non-USDT only) |
-| **OPERATOR** | `openEpoch`, `closeEpoch`, `commitMerkleRoot`, `drawJackpot`, `resolveJackpot`, `resolveSmallPrizes`, `logTickets`                                          |
+| Role         | Permissions                                                                                                                                  |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ADMIN**    | Upgrade contracts (UUPS), grant/revoke roles, set protocol parameters (VRF config, fee splits), pause/unpause, `rescueToken` (non-USDT only) |
+| **OPERATOR** | `openEpoch`, `closeEpoch`, `commitMerkleRoot`, `drawJackpot`, `resolveJackpot`, `resolveSmallPrizes`, `logTickets`                           |
 
 Admin is the only role that can change Operator addresses. Operator cannot self-escalate.
 
@@ -109,14 +109,7 @@ Week N                          Week N+1                        Week N+2
 - Multiple epochs can be in `CLOSED`, `DRAWING`, or `RESOLVED` states simultaneously — the drawing/resolution pipeline for epoch N runs in parallel with epoch N+1 being `OPEN`.
 - The contract tracks `currentEpochId` to identify which epoch is currently accepting trading activity (the `OPEN` one).
 
-### 4.3 Timing
-
-| Parameter                     | Default                        | Configurable |
-| ----------------------------- | ------------------------------ | ------------ |
-| Merkle root submission window | Up to 1 week after epoch close | Yes (admin)  |
-| VRF fulfillment timeout       | Configurable                   | Yes (admin)  |
-
-### 4.4 Flow
+### 4.3 Flow
 
 ```
 1.  Operator calls openEpoch()
@@ -175,7 +168,7 @@ Week N                          Week N+1                        Week N+2
     Steps 4-7 happen while the next epoch is already OPEN and collecting tickets.
 ```
 
-### 4.5 Invariants
+### 4.4 Invariants
 
 - At most **one** epoch in `OPEN` state at any time.
 - Multiple epochs may be in `CLOSED` / `DRAWING` simultaneously (abnormal but not forbidden — e.g., operator delays).
@@ -313,7 +306,7 @@ function rescueToken(address token, address to, uint256 amount) external onlyAdm
 }
 ```
 
-**USDT sweep — reconciling direct transfers**: If someone sends USDT directly to the contract (via `usdt.transfer(snaxpotCore, amount)` instead of `fundJackpot()`), the contract has no callback to detect it. A `sweepUSDT()` function reconciles the actual USDT balance against internal accounting and credits the difference to the jackpot:
+**USDT sweep — reconciling direct transfers**: If someone sends USDT directly to the contract (via `usdt.transfer(snaxpot, amount)` instead of `fundJackpot()`), the contract has no callback to detect it. A `sweepUSDT()` function reconciles the actual USDT balance against internal accounting and credits the difference to the jackpot:
 
 ```solidity
 uint256 public totalAccountedUSDT;  // sum of all tracked USDT (jackpot + epoch snapshots + pending payouts)
@@ -331,7 +324,6 @@ function sweepUSDT() external {
 
 - Permissionless — anyone can call it (operator bot calls it routinely).
 - `totalAccountedUSDT` is updated on every `fundJackpot()`, `drawJackpot()`, `resolveJackpot()`, and rollover to stay in sync.
-- Ensures no USDT is silently lost if sent outside the `fundJackpot()` path.
 
 **USDT quirks**:
 
@@ -538,7 +530,6 @@ event JackpotRolledOver(uint256 indexed epochId, uint256 rolledAmount);
 event SmallPrizesResolved(uint256 indexed epochId, uint256 totalAmount, uint256 winnerCount);
 event JackpotFunded(uint256 amount, uint256 newTotal);
 event TicketAdded(uint256 indexed epochId, address indexed trader, uint8[5] balls, uint8 snaxBall, uint256 ticketIndex);
-event MerkleWindowUpdated(uint256 merkleWindow);
 ```
 
 ---
@@ -576,7 +567,6 @@ mapping(uint256 => uint256) public vrfRequestToEpoch;  // requestId → epochId
 // Config
 address public usdt;
 address public jackpotClaimer;
-uint256 public merkleSubmissionWindow;
 ```
 
 ---

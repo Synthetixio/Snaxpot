@@ -9,16 +9,27 @@ interface ISnaxpot {
         RESOLVED
     }
 
-    struct Epoch {
-        EpochState state;
-        uint256 startTimestamp;
-        uint256 closeTimestamp;
-        uint256 vrfSeed;
-        bytes32 merkleRoot;
-        uint8[5] winningBalls;
+    // enum VrfRequestType {
+    //     NONE,
+    //     SEED,
+    //     DRAW
+    // }
+
+    struct EpochData {
+        uint256 vrfSeed; // slot 0
+        bytes32 merkleRoot; // slot 1
+        uint256 vrfRequestId; // slot 2
+        // slot 3: 8+5+5+1+1+1+1+1+1+1+1 = 26 bytes (6 spare)
+        uint64 jackpotAmount;
+        uint40 startTimestamp;
+        uint40 closeTimestamp;
+        uint8 winningBall1;
+        uint8 winningBall2;
+        uint8 winningBall3;
+        uint8 winningBall4;
+        uint8 winningBall5;
         uint8 winningSnaxBall;
-        uint256 jackpotAmount;
-        uint256 vrfRequestId;
+        EpochState state;
         bool jackpotClaimed;
     }
 
