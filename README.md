@@ -19,7 +19,7 @@ This repository contains **only the on-chain contracts**. The off-chain ticket e
 
 ```
 ┌──────────────────────────────────────────────┐
-│              SnaxpotCore (UUPS)               │
+│              Snaxpot (UUPS)               │
 │  - Epoch lifecycle                            │
 │  - Merkle root storage                        │
 │  - Chainlink VRF integration                  │
@@ -30,7 +30,7 @@ This repository contains **only the on-chain contracts**. The off-chain ticket e
            │                   │
            ▼                   ▼
 ┌─────────────────┐  ┌────────────────────┐
-│  JackpotVault   │  │  PrizePool         │
+│  JackpotClaimer   │  │  PrizeDistributor         │
 │  (claiming)     │  │  (small winners)   │
 │                 │  │                    │
 │  Jackpot winner │  │  Standalone.       │
@@ -42,9 +42,9 @@ This repository contains **only the on-chain contracts**. The off-chain ticket e
 
 | Contract         | Upgradeability | Purpose                                                                                                                           |
 | ---------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| **SnaxpotCore**  | UUPS proxy     | Main lottery logic — epochs, VRF, Merkle verification, jackpot settlement                                                         |
-| **JackpotVault** | UUPS proxy     | Escrow for jackpot winnings; winner calls `claim()` to withdraw USDT                                                              |
-| **PrizePool**    | TBD            | Standalone USDT pool for small-prize distribution via external deposit contract. No interaction with SnaxpotCore or JackpotVault. |
+| **Snaxpot**  | UUPS proxy     | Main lottery logic — epochs, VRF, Merkle verification, jackpot settlement                                                         |
+| **JackpotClaimer** | UUPS proxy     | Escrow for jackpot winnings; winner calls `claim()` to withdraw USDT                                                              |
+| **PrizeDistributor**    | TBD            | Standalone USDT pool for small-prize distribution via external deposit contract. No interaction with Snaxpot or JackpotClaimer. |
 
 ---
 
@@ -159,7 +159,7 @@ Week N                          Week N+1                        Week N+2
 
       If winner:
         → Verifies merkle proof on-chain
-        → Transfers jackpot USDT to JackpotVault
+        → Transfers jackpot USDT to JackpotClaimer
         → event JackpotWon(epochId, winner, amount)
 
       If no winner:
@@ -168,7 +168,7 @@ Week N                          Week N+1                        Week N+2
 
 7.  Operator calls resolveSmallPrizes(epochId, totalAmount, winners[])
       → Emits event for off-chain distribution
-      → No on-chain USDT transfer for small prizes (handled via PrizePool contract)
+      → No on-chain USDT transfer for small prizes (handled via PrizeDistributor contract)
       → event SmallPrizesResolved(epochId, totalAmount, winnerCount)
       → Epoch state → RESOLVED
 
@@ -223,7 +223,7 @@ The 5 standard balls are **sorted ascending** after derivation to match ticket f
 
 ### 6.1 Funding
 
-Anyone (operator, protocol fee router, or external donor) can deposit USDT into `SnaxpotCore` **at any time**, including mid-epoch. This allows the jackpot to grow throughout the week as trading fees are converted and deposited.
+Anyone (operator, protocol fee router, or external donor) can deposit USDT into `Snaxpot` **at any time**, including mid-epoch. This allows the jackpot to grow throughout the week as trading fees are converted and deposited.
 
 ```solidity
 function fundJackpot(uint256 amount) external;
@@ -270,8 +270,8 @@ The unclaimed amount flows back into `currentJackpot`, stacking on top of any ne
 On `resolveJackpot(epochId, ...)`:
 
 1. Verifies the winning ticket via Merkle proof (see §8).
-2. Transfers `epochJackpot[epochId]` in USDT to `JackpotVault`.
-3. Records the claim entitlement: `JackpotVault.credit(winner, amount)`.
+2. Transfers `epochJackpot[epochId]` in USDT to `JackpotClaimer`.
+3. Records the claim entitlement: `JackpotClaimer.credit(winner, amount)`.
 4. `epochJackpot[epochId]` marked as claimed.
 
 `currentJackpot` is unaffected — it already had the snapshot subtracted at draw time and may have new deposits accumulating for the next draw.
@@ -304,7 +304,7 @@ fundJackpot(100)                                     │
 
 **Rejecting native ETH**: The contract has no `receive()` or `fallback()` function (or they explicitly `revert`). Any direct ETH transfer will fail.
 
-**Non-USDT ERC-20 tokens**: There is no on-chain mechanism to prevent arbitrary ERC-20 tokens from being transferred to the contract — ERC-20 `transfer()` executes on the token contract with no receiver callback. Non-USDT tokens sent to the contract are effectively stuck. An admin-only `rescueToken(address token, address to, uint256 amount)` function allows recovering accidentally sent tokens. **Hardcoded to reject USDT** — there is no admin function that can withdraw USDT from the contract. The only way to extract USDT is through the normal lottery flow (`resolveJackpot` → `JackpotVault` → `claim`). If USDT recovery is ever truly needed (e.g., contract migration), it requires a UUPS upgrade to deploy new logic.
+**Non-USDT ERC-20 tokens**: There is no on-chain mechanism to prevent arbitrary ERC-20 tokens from being transferred to the contract — ERC-20 `transfer()` executes on the token contract with no receiver callback. Non-USDT tokens sent to the contract are effectively stuck. An admin-only `rescueToken(address token, address to, uint256 amount)` function allows recovering accidentally sent tokens. **Hardcoded to reject USDT** — there is no admin function that can withdraw USDT from the contract. The only way to extract USDT is through the normal lottery flow (`resolveJackpot` → `JackpotClaimer` → `claim`). If USDT recovery is ever truly needed (e.g., contract migration), it requires a UUPS upgrade to deploy new logic.
 
 ```solidity
 function rescueToken(address token, address to, uint256 amount) external onlyAdmin {
@@ -341,21 +341,21 @@ function sweepUSDT() external {
 
 ---
 
-## 7. JackpotVault Contract
+## 7. JackpotClaimer Contract
 
 Simple escrow allowing verified jackpot winners to claim.
 
 ```solidity
 // Simplified interface
-function credit(address winner, uint256 amount) external;   // only callable by SnaxpotCore
+function credit(address winner, uint256 amount) external;   // only callable by Snaxpot
 function claim() external;                                   // winner withdraws their USDT
 function claimableBalance(address user) external view returns (uint256);
 function sweepExpired(address winner) external;              // admin-only, reclaims expired credits
 ```
 
-- USDT transferred in from SnaxpotCore on `credit()`. Each credit records a timestamp.
+- USDT transferred in from Snaxpot on `credit()`. Each credit records a timestamp.
 - Winner calls `claim()` to withdraw their USDT at any time within the claim window.
-- **3-month expiry**: unclaimed credits expire after 90 days. Admin calls `sweepExpired()` to return expired funds to `SnaxpotCore` (credited back to `currentJackpot`).
+- **3-month expiry**: unclaimed credits expire after 90 days. Admin calls `sweepExpired()` to return expired funds to `Snaxpot` (credited back to `currentJackpot`).
 - One active credit per winner per epoch.
 
 ---
@@ -433,15 +433,15 @@ function _verifyTicket(
 
 ## 9. Small Prize Resolution
 
-Small prizes (fewer than 5+Snax matching balls) are **not settled on-chain** within SnaxpotCore. The flow:
+Small prizes (fewer than 5+Snax matching balls) are **not settled on-chain** within Snaxpot. The flow:
 
 1. Operator computes all small-prize winners off-chain.
-2. Operator calls `resolveSmallPrizes(epochId, ...)` on SnaxpotCore — emits event only, no USDT moves.
-3. Distribution is handled via the **PrizePool** contract (see §9.1).
+2. Operator calls `resolveSmallPrizes(epochId, ...)` on Snaxpot — emits event only, no USDT moves.
+3. Distribution is handled via the **PrizeDistributor** contract (see §9.1).
 
-### 9.1 PrizePool Contract
+### 9.1 PrizeDistributor Contract
 
-Standalone contract. **No on-chain interaction with SnaxpotCore or JackpotVault.** Holds a USDT pool that the operator draws from to distribute small prizes via an external deposit contract.
+Standalone contract. **No on-chain interaction with Snaxpot or JackpotClaimer.** Holds a USDT pool that the operator draws from to distribute small prizes via an external deposit contract.
 
 **Roles:**
 
@@ -460,12 +460,12 @@ function distribute(address[] calldata winners, uint256[] calldata amounts) exte
 
 **`fund(uint256 amount)`**
 
-- Transfers USDT into the PrizePool from caller. Permissionless (anyone can fund) or admin-only — TBD.
-- Emits `PrizePoolFunded(amount)`.
+- Transfers USDT into the PrizeDistributor from caller. Permissionless (anyone can fund) or admin-only — TBD.
+- Emits `PrizeDistributorFunded(amount)`.
 
 **`recoverUSDT(address to, uint256 amount)`**
 
-- Admin/treasury can withdraw USDT from the pool at any time (unlike SnaxpotCore, this pool is explicitly recoverable).
+- Admin/treasury can withdraw USDT from the pool at any time (unlike Snaxpot, this pool is explicitly recoverable).
 
 **`distribute(address[] winners, uint256[] amounts)`**
 
@@ -487,7 +487,7 @@ function distribute(address[] calldata winners, uint256[] calldata amounts) exte
 
 **Key properties:**
 
-- Fully siloed — no calls to/from SnaxpotCore or JackpotVault.
+- Fully siloed — no calls to/from Snaxpot or JackpotClaimer.
 - Admin can recover all USDT (this is a funded pool, not user escrow).
 - Distribution goes through an external deposit contract, not direct transfers to winners.
 - Deposit contract interface details TBD.
@@ -543,7 +543,7 @@ event MerkleWindowUpdated(uint256 merkleWindow);
 
 ---
 
-## 12. Storage Layout (SnaxpotCore)
+## 12. Storage Layout (Snaxpot)
 
 Key state variables (UUPS-safe, no storage collisions with proxy):
 
@@ -575,7 +575,7 @@ mapping(uint256 => uint256) public vrfRequestToEpoch;  // requestId → epochId
 
 // Config
 address public usdt;
-address public jackpotVault;
+address public jackpotClaimer;
 uint256 public merkleSubmissionWindow;
 ```
 
@@ -583,7 +583,7 @@ uint256 public merkleSubmissionWindow;
 
 ## 13. Upgradeability (UUPS)
 
-`SnaxpotCore` inherits `UUPSUpgradeable`. Only `ADMIN` role can call `upgradeTo()` / `upgradeToAndCall()`.
+`Snaxpot` inherits `UUPSUpgradeable`. Only `ADMIN` role can call `upgradeTo()` / `upgradeToAndCall()`.
 
 Storage layout must follow OpenZeppelin's upgradeable contract patterns:
 
@@ -605,7 +605,7 @@ Storage layout must follow OpenZeppelin's upgradeable contract patterns:
 | Stale epoch (operator goes offline)   | Admin can force-resolve or pause; consider timeout-based fallback                                                                                                                                                                                                                                                                                                                          |
 | Storage collision on upgrade          | Follow OZ upgrade-safe patterns; use storage gaps; run `forge inspect`                                                                                                                                                                                                                                                                                                                     |
 | Front-running `resolveJackpot`        | Only operator can call; no MEV advantage since winner is deterministic from Merkle proof                                                                                                                                                                                                                                                                                                   |
-| Compromised operator key / exploit    | Admin calls `pause()` — all operator functions (`openEpoch`, `closeEpoch`, `commitMerkleRoot`, `drawJackpot`, `resolveJackpot`, `resolveSmallPrizes`, `logTickets`) and `fundJackpot` are gated with `whenNotPaused`. Admin can still `unpause()`, upgrade, or recover funds while paused. `claim()` on JackpotVault remains callable while paused so existing winners can still withdraw. |
+| Compromised operator key / exploit    | Admin calls `pause()` — all operator functions (`openEpoch`, `closeEpoch`, `commitMerkleRoot`, `drawJackpot`, `resolveJackpot`, `resolveSmallPrizes`, `logTickets`) and `fundJackpot` are gated with `whenNotPaused`. Admin can still `unpause()`, upgrade, or recover funds while paused. `claim()` on JackpotClaimer remains callable while paused so existing winners can still withdraw. |
 
 ---
 
@@ -623,19 +623,19 @@ Storage layout must follow OpenZeppelin's upgradeable contract patterns:
 
 ```
 ├── src/
-│   ├── SnaxpotCore.sol          # Main lottery logic (UUPS)
-│   ├── JackpotVault.sol         # Jackpot claim escrow
-│   ├── PrizePool.sol            # Small prize pool (TBD)
+│   ├── Snaxpot.sol          # Main lottery logic (UUPS)
+│   ├── JackpotClaimer.sol         # Jackpot claim escrow
+│   ├── PrizeDistributor.sol         # Small prize distribution
 │   └── interfaces/
-│       ├── ISnaxpotCore.sol
-│       ├── IJackpotVault.sol
-│       └── IPrizePool.sol
+│       ├── ISnaxpot.sol
+│       ├── IJackpotClaimer.sol
+│       └── IPrizeDistributor.sol
 ├── script/
 │   ├── Deploy.s.sol
 │   └── Upgrade.s.sol
 ├── test/
-│   ├── SnaxpotCore.t.sol
-│   ├── JackpotVault.t.sol
+│   ├── Snaxpot.t.sol
+│   ├── JackpotClaimer.t.sol
 │   └── mocks/
 │       ├── MockVRFCoordinator.sol
 │       └── MockUSDT.sol
