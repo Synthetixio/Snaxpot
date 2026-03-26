@@ -34,10 +34,9 @@ This repository contains **only the on-chain contracts**. The off-chain ticket e
 │  (claiming)     │  │  (small winners)   │
 │                 │  │                    │
 │  Jackpot winner │  │  Standalone.       │
-│  calls claim()  │  │  No interaction    │
-│  to withdraw    │  │  with SnaxpotCore  │
-│  USDT           │  │  or JackpotVault.  │
-│                 │  │  (details TBD)     │
+│  calls claim()  │  │  Distributes via   │
+│  to withdraw    │  │  external deposit  │
+│  USDT           │  │  contract.         │
 └─────────────────┘  └────────────────────┘
 ```
 
