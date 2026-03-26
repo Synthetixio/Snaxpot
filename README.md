@@ -642,5 +642,3 @@ Storage layout must follow OpenZeppelin's upgradeable contract patterns:
 ├── foundry.toml
 └── README.md                    # ← you are here
 ```
-
----

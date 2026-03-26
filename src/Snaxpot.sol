@@ -27,7 +27,5 @@ contract Snaxpot is ISnaxpot, Initializable, UUPSUpgradeable, AccessControlUpgra
         // TODO
     }
 
-    function _authorizeUpgrade(
-        address
-    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 }
