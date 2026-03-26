@@ -306,12 +306,12 @@ function rescueToken(address token, address to, uint256 amount) external onlyAdm
 }
 ```
 
-**USDT sweep — reconciling direct transfers**: If someone sends USDT directly to the contract (via `usdt.transfer(snaxpot, amount)` instead of `fundJackpot()`), the contract has no callback to detect it. A `sweepUSDT()` function reconciles the actual USDT balance against internal accounting and credits the difference to the jackpot:
+**USDT reconciliation — reconciling direct transfers**: If someone sends USDT directly to the contract (via `usdt.transfer(snaxpot, amount)` instead of `fundJackpot()`), the contract has no callback to detect it. An admin-only `reconcileUSDT()` function reconciles the actual USDT balance against internal accounting and credits the difference to the jackpot:
 
 ```solidity
 uint256 public totalAccountedUSDT;  // sum of all tracked USDT (jackpot + epoch snapshots + pending payouts)
 
-function sweepUSDT() external {
+function reconcileUSDT() external onlyAdmin {
     uint256 actual = usdt.balanceOf(address(this));
     uint256 surplus = actual - totalAccountedUSDT;
     if (surplus > 0) {
@@ -322,7 +322,7 @@ function sweepUSDT() external {
 }
 ```
 
-- Permissionless — anyone can call it (operator bot calls it routinely).
+- Admin-only.
 - `totalAccountedUSDT` is updated on every `fundJackpot()`, `drawJackpot()`, `resolveJackpot()`, and rollover to stay in sync.
 
 **USDT quirks**:

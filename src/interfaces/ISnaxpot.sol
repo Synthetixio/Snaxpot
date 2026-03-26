@@ -50,6 +50,7 @@ interface ISnaxpot {
     // event JackpotFunded(uint256 amount, uint256 newTotal);
     // event TicketAdded(uint256 indexed epochId, address indexed trader, uint8[5] balls, uint8 snaxBall, uint256 ticketIndex);
 
+    // ─── Operator ─────────────────────────────────────────────────────
     // function openEpoch() external;
     // function closeEpoch(uint256 epochId) external;
     // function closeAndOpenNewEpoch(uint256 epochId) external;
@@ -65,10 +66,19 @@ interface ISnaxpot {
     // ) external;
     // function resolveJackpotNoWinner(uint256 epochId) external;
     // function resolveSmallPrizes(uint256 epochId, uint256 totalAmount, uint256 winnerCount) external;
-    // function fundJackpot(uint256 amount) external;
     // function logTickets(uint256 epochId, TicketLog[] calldata tickets) external;
+
+    // ─── Admin ───────────────────────────────────────────────────────
     // function rescueToken(address token, address to, uint256 amount) external;
+    // function reconcileUSDT() external;
+    // function pause() external;
+    // function unpause() external;
+
+    // ─── External ──────────────────────────────────────────────
+    // function fundJackpot(uint256 amount) external;
+
+    // ─── View ────────────────────────────────────────────────────────
     // function currentEpochId() external view returns (uint256);
     // function currentJackpot() external view returns (uint256);
-    // function epochs(uint256 epochId) external view returns (Epoch memory);
+    // function epochs(uint256 epochId) external view returns (EpochData memory);
 }
