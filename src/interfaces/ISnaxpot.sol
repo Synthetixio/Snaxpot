@@ -47,7 +47,7 @@ interface ISnaxpot {
     // event JackpotWon(uint256 indexed epochId, address indexed winner, uint256 amount);
     // event JackpotRolledOver(uint256 indexed epochId, uint256 rolledAmount);
     // event SmallPrizesResolved(uint256 indexed epochId, uint256 totalAmount, uint256 winnerCount);
-    // event JackpotFunded(uint256 amount, uint256 newTotal);
+    event JackpotFunded(uint256 amount, uint256 newTotal);
     // event TicketAdded(uint256 indexed epochId, address indexed trader, uint8[5] balls, uint8 snaxBall, uint256 ticketIndex);
 
     // ─── Operator ─────────────────────────────────────────────────────
@@ -69,11 +69,11 @@ interface ISnaxpot {
     // function logTickets(uint256 epochId, TicketLog[] calldata tickets) external;
 
     // ─── Admin ───────────────────────────────────────────────────────
-    // function rescueToken(address token, address to, uint256 amount) external;
-    // function reconcileUSDT() external;
-    // function setJackpotClaimer(address _jackpotClaimer) external;
-    // function pause() external;
-    // function unpause() external;
+    function rescueToken(address token, address to, uint256 amount) external;
+    function reconcileUSDT() external;
+    function setJackpotClaimer(address _jackpotClaimer) external;
+    function pause() external;
+    function unpause() external;
 
     // ─── External ──────────────────────────────────────────────
     // function fundJackpot(uint256 amount) external;

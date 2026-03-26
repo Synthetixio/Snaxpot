@@ -15,12 +15,7 @@ import {IJackpotClaimer} from "./interfaces/IJackpotClaimer.sol";
 
 // TODO: Create VRFConsumerBaseV2PlusUpgradeable — no official Chainlink one exists for V2.5 + UUPS.
 //       Snaxpot should inherit it. See VRFConsumerBaseV2Upgradeable (V2) for reference pattern.
-contract Snaxpot is
-    ISnaxpot,
-    Initializable,
-    UUPSUpgradeable,
-    AccessControlUpgradeable
-{
+contract Snaxpot is ISnaxpot, Initializable, UUPSUpgradeable, AccessControlUpgradeable {
     using SafeERC20 for IERC20;
 
     // ─── Constants ─────────────────────────────────────────────────────
@@ -58,12 +53,10 @@ contract Snaxpot is
         _disableInitializers();
     }
 
-    function initialize(
-        address _admin,
-        address _operator,
-        address _usdt,
-        address _jackpotClaimer
-    ) external initializer {
+    function initialize(address _admin, address _operator, address _usdt, address _jackpotClaimer)
+        external
+        initializer
+    {
         __AccessControl_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
@@ -73,7 +66,39 @@ contract Snaxpot is
         jackpotClaimer = IJackpotClaimer(_jackpotClaimer);
     }
 
-    function _authorizeUpgrade(
-        address
-    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    // ─── Admin ───────────────────────────────────────────────────────
+
+    /// @notice Recover non-USDT ERC-20 tokens accidentally sent to this contract.
+    function rescueToken(address token, address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(token != address(usdt), "cannot withdraw USDT");
+        IERC20(token).safeTransfer(to, amount);
+    }
+
+    /// @notice Credit any USDT surplus (direct transfers) to the jackpot.
+    function reconcileUSDT() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        uint256 actual = usdt.balanceOf(address(this));
+        uint256 surplus = actual - totalAccountedUSDT;
+        if (surplus > 0) {
+            currentJackpot += surplus;
+            totalAccountedUSDT += surplus;
+            emit JackpotFunded(surplus, currentJackpot);
+        }
+    }
+
+    function setJackpotClaimer(address _jackpotClaimer) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_jackpotClaimer != address(0), "zero address");
+        jackpotClaimer = IJackpotClaimer(_jackpotClaimer);
+    }
+
+    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        paused = true;
+    }
+
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        paused = false;
+    }
+
+    // ─── Internal ────────────────────────────────────────────────────
+
+    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 }
