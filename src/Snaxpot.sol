@@ -47,8 +47,12 @@ contract Snaxpot is
     mapping(uint256 requestId => VrfRequestType) public vrfRequestType;
 
     modifier whenNotPaused() {
-        require(!paused, "Paused");
+        _whenNotPaused();
         _;
+    }
+
+    function _whenNotPaused() internal view {
+        require(!paused, "Paused");
     }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -182,7 +186,7 @@ contract Snaxpot is
             // iterations beyond the 5 words, derive fresh entropy via keccak.
             uint256 rand = i < 5 ? randomWords[i] : uint256(keccak256(abi.encodePacked(randomWords[i - 1], i)));
             uint8 ball = uint8((rand % BALL_MAX) + 1);
-            uint256 bit = 1 << ball;
+            uint256 bit = uint256(1) << ball;
 
             if (usedMask & bit == 0) {
                 // No collision — accept this ball
@@ -195,7 +199,7 @@ contract Snaxpot is
                 while (usedMask & bit != 0) {
                     hash = uint256(keccak256(abi.encodePacked(hash)));
                     ball = uint8((hash % BALL_MAX) + 1);
-                    bit = 1 << ball;
+                    bit = uint256(1) << ball;
                 }
                 usedMask |= bit;
                 balls[count] = ball;
