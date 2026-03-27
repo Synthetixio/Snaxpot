@@ -36,7 +36,11 @@ interface ISnaxpot {
     // ─── Errors ──────────────────────────────────────────────────────
     error ContractPaused();
     error EpochAlreadyOpen();
-    error InvalidEpochState(uint256 epochId, EpochState current, EpochState expected);
+    error InvalidEpochState(
+        uint256 epochId,
+        EpochState current,
+        EpochState expected
+    );
     error CannotWithdrawUSDT();
 
     // struct TicketLog {
@@ -46,10 +50,23 @@ interface ISnaxpot {
     //     uint256 ticketIndex;
     // }
 
-    event EpochOpened(uint256 indexed epochId, uint256 vrfSeed, uint256 startTimestamp);
-    event EpochClosed(uint256 indexed epochId, uint64 jackpotAmount, uint256 closeTimestamp);
+    event EpochOpened(
+        uint256 indexed epochId,
+        uint256 vrfSeed,
+        uint256 startTimestamp
+    );
+    event EpochClosed(
+        uint256 indexed epochId,
+        uint64 jackpotAmount,
+        uint256 closeTimestamp
+    );
     // event MerkleRootCommitted(uint256 indexed epochId, bytes32 root);
-    event WinningNumbersDrawn(uint256 indexed epochId, uint8[5] balls, uint8 snaxBall, uint256 vrfRequestId);
+    event WinningNumbersDrawn(
+        uint256 indexed epochId,
+        uint8[5] balls,
+        uint8 snaxBall,
+        uint256 vrfRequestId
+    );
     // event JackpotWon(uint256 indexed epochId, address indexed winner, uint256 amount);
     // event JackpotRolledOver(uint256 indexed epochId, uint256 rolledAmount);
     // event SmallPrizesResolved(uint256 indexed epochId, uint256 totalAmount, uint256 winnerCount);
@@ -59,8 +76,11 @@ interface ISnaxpot {
 
     // ─── Operator ─────────────────────────────────────────────────────
     function openEpoch() external;
+
     function closeEpoch(uint256 epochId) external;
+
     function closeAndOpenNewEpoch(uint256 epochId) external;
+
     // function commitMerkleRoot(uint256 epochId, bytes32 root) external;
     // function drawJackpot(uint256 epochId) external;
     // function resolveJackpot(

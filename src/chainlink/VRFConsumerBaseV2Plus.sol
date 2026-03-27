@@ -9,7 +9,7 @@ pragma solidity ^0.8.4;
 
 import {IVRFCoordinatorV2Plus} from "./interfaces/IVRFCoordinatorV2Plus.sol";
 import {IVRFMigratableConsumerV2Plus} from "./interfaces/IVRFMigratableConsumerV2Plus.sol";
-import {ConfirmedOwner} from "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
+import {ConfirmedOwner} from "./access/ConfirmedOwner.sol";
 
 /**
  ****************************************************************************
