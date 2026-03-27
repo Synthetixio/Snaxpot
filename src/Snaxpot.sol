@@ -8,9 +8,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-
 import {VRFConsumerBaseV2PlusUpgradeable} from "./chainlink/VRFConsumerBaseV2PlusUpgradeable.sol";
 import {VRFV2PlusClient} from "./chainlink/libraries/VRFV2PlusClient.sol";
+
 import {ISnaxpot} from "./interfaces/ISnaxpot.sol";
 import {IJackpotClaimer} from "./interfaces/IJackpotClaimer.sol";
 
