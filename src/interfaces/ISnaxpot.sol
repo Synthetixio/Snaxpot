@@ -107,7 +107,7 @@ interface ISnaxpot {
     function fundJackpot(uint256 amount) external;
 
     // ─── View ────────────────────────────────────────────────────────
-    // function currentEpochId() external view returns (uint256);
-    // function currentJackpot() external view returns (uint256);
-    // function epochs(uint256 epochId) external view returns (EpochData memory);
+    function getEpoch(uint256 epochId) external view returns (EpochData memory);
+    function getVrfRequestEpoch(uint256 requestId) external view returns (uint256);
+    function getVrfRequestType(uint256 requestId) external view returns (VrfRequestType);
 }

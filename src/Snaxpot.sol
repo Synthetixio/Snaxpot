@@ -407,6 +407,20 @@ contract Snaxpot is
         _checkRole(DEFAULT_ADMIN_ROLE);
     }
 
+    // ─── View ─────────────────────────────────────────────────────
+
+    function getEpoch(uint256 epochId) external view returns (EpochData memory) {
+        return epochs[epochId];
+    }
+
+    function getVrfRequestEpoch(uint256 requestId) external view returns (uint256) {
+        return vrfRequestToEpoch[requestId];
+    }
+
+    function getVrfRequestType(uint256 requestId) external view returns (VrfRequestType) {
+        return vrfRequestType[requestId];
+    }
+
     // ─── OTHER ────────────────────────────────────────────────────
 
     function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
