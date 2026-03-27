@@ -7,15 +7,19 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-// import {IVRFCoordinatorV2Plus} from "@chainlink/contracts/src/v0.8/vrf/dev/interfaces/IVRFCoordinatorV2Plus.sol";
-// import {VRFV2PlusClient} from "@chainlink/contracts/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
 
+import {VRFConsumerBaseV2PlusUpgradeable} from "./chainlink/VRFConsumerBaseV2PlusUpgradeable.sol";
+import {VRFV2PlusClient} from "./chainlink/libraries/VRFV2PlusClient.sol";
 import {ISnaxpot} from "./interfaces/ISnaxpot.sol";
 import {IJackpotClaimer} from "./interfaces/IJackpotClaimer.sol";
 
-// TODO: Create VRFConsumerBaseV2PlusUpgradeable — no official Chainlink one exists for V2.5 + UUPS.
-//       Snaxpot should inherit it. See VRFConsumerBaseV2Upgradeable (V2) for reference pattern.
-contract Snaxpot is ISnaxpot, Initializable, UUPSUpgradeable, AccessControlUpgradeable {
+contract Snaxpot is
+    ISnaxpot,
+    Initializable,
+    UUPSUpgradeable,
+    AccessControlUpgradeable,
+    VRFConsumerBaseV2PlusUpgradeable
+{
     using SafeERC20 for IERC20;
 
     // ─── Constants ─────────────────────────────────────────────────────
@@ -34,14 +38,13 @@ contract Snaxpot is ISnaxpot, Initializable, UUPSUpgradeable, AccessControlUpgra
     uint256 public currentEpochId;
     mapping(uint256 epochId => EpochData) public epochs;
 
-    // TODO: VRF state — uncomment when Chainlink integration is wired up
-    // IVRFCoordinatorV2Plus public vrfCoordinator;
-    // uint256 public vrfSubscriptionId;
-    // bytes32 public vrfKeyHash;
-    // uint32 public vrfCallbackGasLimit;
-    // uint16 public vrfRequestConfirmations;
-    // mapping(uint256 requestId => uint256 epochId) public vrfRequestToEpoch;
-    // mapping(uint256 requestId => VrfRequestType) public vrfRequestType;
+    // ─── VRF state ─────────────────────────────────────────────────────
+    uint256 public vrfSubscriptionId;
+    bytes32 public vrfKeyHash;
+    uint32 public vrfCallbackGasLimit;
+    uint16 public vrfRequestConfirmations;
+    mapping(uint256 requestId => uint256 epochId) public vrfRequestToEpoch;
+    mapping(uint256 requestId => VrfRequestType) public vrfRequestType;
 
     modifier whenNotPaused() {
         require(!paused, "Paused");
@@ -53,23 +56,40 @@ contract Snaxpot is ISnaxpot, Initializable, UUPSUpgradeable, AccessControlUpgra
         _disableInitializers();
     }
 
-    function initialize(address _admin, address _operator, address _usdt, address _jackpotClaimer)
-        external
-        initializer
-    {
+    function initialize(
+        address _admin,
+        address _operator,
+        address _usdt,
+        address _jackpotClaimer,
+        address _vrfCoordinator,
+        uint256 _vrfSubscriptionId,
+        bytes32 _vrfKeyHash,
+        uint32 _vrfCallbackGasLimit,
+        uint16 _vrfRequestConfirmations
+    ) external initializer {
         __AccessControl_init();
+        __VRFConsumerBaseV2Plus_init(_vrfCoordinator);
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(OPERATOR_ROLE, _operator);
 
         usdt = IERC20(_usdt);
         jackpotClaimer = IJackpotClaimer(_jackpotClaimer);
+
+        vrfSubscriptionId = _vrfSubscriptionId;
+        vrfKeyHash = _vrfKeyHash;
+        vrfCallbackGasLimit = _vrfCallbackGasLimit;
+        vrfRequestConfirmations = _vrfRequestConfirmations;
     }
 
     // ─── Admin ───────────────────────────────────────────────────────
 
     /// @notice Recover non-USDT ERC-20 tokens accidentally sent to this contract.
-    function rescueToken(address token, address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function rescueToken(
+        address token,
+        address to,
+        uint256 amount
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(token != address(usdt), "cannot withdraw USDT");
         IERC20(token).safeTransfer(to, amount);
     }
@@ -85,7 +105,9 @@ contract Snaxpot is ISnaxpot, Initializable, UUPSUpgradeable, AccessControlUpgra
         }
     }
 
-    function setJackpotClaimer(address _jackpotClaimer) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setJackpotClaimer(
+        address _jackpotClaimer
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_jackpotClaimer != address(0), "zero address");
         jackpotClaimer = IJackpotClaimer(_jackpotClaimer);
     }
@@ -98,7 +120,68 @@ contract Snaxpot is ISnaxpot, Initializable, UUPSUpgradeable, AccessControlUpgra
         paused = false;
     }
 
-    // ─── Internal ────────────────────────────────────────────────────
+    function setVrfConfig(
+        uint256 _subscriptionId,
+        bytes32 _keyHash,
+        uint32 _callbackGasLimit,
+        uint16 _requestConfirmations
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        vrfSubscriptionId = _subscriptionId;
+        vrfKeyHash = _keyHash;
+        vrfCallbackGasLimit = _callbackGasLimit;
+        vrfRequestConfirmations = _requestConfirmations;
+    }
 
-    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    // ─── VRF ──────────────────────────────────────────────────────────
+
+    function _requestVrf(
+        uint256 epochId,
+        VrfRequestType reqType
+    ) internal returns (uint256 requestId) {
+        requestId = s_vrfCoordinator.requestRandomWords(
+            VRFV2PlusClient.RandomWordsRequest({
+                keyHash: vrfKeyHash,
+                subId: vrfSubscriptionId,
+                requestConfirmations: vrfRequestConfirmations,
+                callbackGasLimit: vrfCallbackGasLimit,
+                numWords: reqType == VrfRequestType.SEED ? 1 : 6,
+                extraArgs: VRFV2PlusClient._argsToBytes(
+                    VRFV2PlusClient.ExtraArgsV1({nativePayment: false})
+                )
+            })
+        );
+
+        vrfRequestToEpoch[requestId] = epochId;
+        vrfRequestType[requestId] = reqType;
+    }
+
+    function fulfillRandomWords(
+        uint256 requestId,
+        uint256[] calldata randomWords
+    ) internal override {
+        uint256 epochId = vrfRequestToEpoch[requestId];
+        EpochData storage epoch = epochs[epochId];
+        VrfRequestType reqType = vrfRequestType[requestId];
+
+        if (reqType == VrfRequestType.SEED) {
+            epoch.vrfSeed = randomWords[0];
+        } else {
+            // DRAW — 6 random words: 5 main balls [1,BALL_MAX] + 1 snax ball [1,SNAX_BALL_MAX].
+            // Duplicates in main balls rejected via bitmask; collisions re-derived with keccak.
+            // TODO: _deriveBalls(randomWords) and set epoch winning fields, transition to RESOLVED.
+        }
+
+        delete vrfRequestToEpoch[requestId];
+        delete vrfRequestType[requestId];
+    }
+
+    function _checkAuthorizedToSetCoordinator() internal override {
+        _checkRole(DEFAULT_ADMIN_ROLE);
+    }
+
+    // ─── OTHER ────────────────────────────────────────────────────
+
+    function _authorizeUpgrade(
+        address
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 }

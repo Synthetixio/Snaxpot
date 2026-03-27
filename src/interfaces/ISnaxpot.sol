@@ -9,11 +9,10 @@ interface ISnaxpot {
         RESOLVED
     }
 
-    // enum VrfRequestType {
-    //     NONE,
-    //     SEED,
-    //     DRAW
-    // }
+    enum VrfRequestType {
+        SEED,
+        DRAW
+    }
 
     struct EpochData {
         uint256 vrfSeed; // slot 0
@@ -74,6 +73,7 @@ interface ISnaxpot {
     function setJackpotClaimer(address _jackpotClaimer) external;
     function pause() external;
     function unpause() external;
+    function setVrfConfig(uint256 _subscriptionId, bytes32 _keyHash, uint32 _callbackGasLimit, uint16 _requestConfirmations) external;
 
     // ─── External ──────────────────────────────────────────────
     // function fundJackpot(uint256 amount) external;
