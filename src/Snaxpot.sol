@@ -6,6 +6,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
 import {VRFConsumerBaseV2PlusUpgradeable} from "./chainlink/VRFConsumerBaseV2PlusUpgradeable.sol";
@@ -21,6 +22,7 @@ contract Snaxpot is
     VRFConsumerBaseV2PlusUpgradeable
 {
     using SafeERC20 for IERC20;
+    using SafeCast for uint256;
 
     // ─── Constants ─────────────────────────────────────────────────────
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
@@ -52,7 +54,7 @@ contract Snaxpot is
     }
 
     function _whenNotPaused() internal view {
-        require(!paused, "Paused");
+        if (paused) revert ContractPaused();
     }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -86,6 +88,52 @@ contract Snaxpot is
         vrfRequestConfirmations = _vrfRequestConfirmations;
     }
 
+    // ─── Operator ──────────────────────────────────────────────────────
+
+    function openEpoch() external onlyRole(OPERATOR_ROLE) whenNotPaused {
+        _openEpoch();
+    }
+
+    function closeEpoch(uint256 epochId) external onlyRole(OPERATOR_ROLE) whenNotPaused {
+        _closeEpoch(epochId);
+    }
+
+    function closeAndOpenNewEpoch(uint256 epochId) external onlyRole(OPERATOR_ROLE) whenNotPaused {
+        _closeEpoch(epochId);
+        _openEpoch();
+    }
+
+    function _openEpoch() internal {
+        if (currentEpochId > 0 && epochs[currentEpochId].state == EpochState.OPEN) {
+            revert EpochAlreadyOpen();
+        }
+
+        currentEpochId++;
+        uint256 epochId = currentEpochId;
+
+        EpochData storage epoch = epochs[epochId];
+        epoch.state = EpochState.OPEN;
+        epoch.startTimestamp = uint40(block.timestamp);
+
+        _requestVrf(epochId, VrfRequestType.SEED);
+    }
+
+    function _closeEpoch(uint256 epochId) internal {
+        EpochData storage epoch = epochs[epochId];
+        if (epoch.state != EpochState.OPEN) {
+            revert InvalidEpochState(epochId, epoch.state, EpochState.OPEN);
+        }
+
+        epoch.state = EpochState.CLOSED;
+        epoch.closeTimestamp = uint40(block.timestamp);
+
+        uint64 snapshot = currentJackpot.toUint64();
+        epoch.jackpotAmount = snapshot;
+        currentJackpot = 0;
+
+        emit EpochClosed(epochId, snapshot, block.timestamp);
+    }
+
     // ─── Admin ───────────────────────────────────────────────────────
 
     function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -97,7 +145,7 @@ contract Snaxpot is
     }
 
     function setJackpotClaimer(address _jackpotClaimer) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_jackpotClaimer != address(0), "zero address");
+        if (_jackpotClaimer == address(0)) revert ZeroAddress();
         jackpotClaimer = IJackpotClaimer(_jackpotClaimer);
     }
 
@@ -115,7 +163,7 @@ contract Snaxpot is
 
     /// @notice Recover non-USDT ERC-20 tokens accidentally sent to this contract.
     function rescueToken(address token, address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(token != address(usdt), "cannot withdraw USDT");
+        if (token == address(usdt)) revert CannotWithdrawUSDT();
         IERC20(token).safeTransfer(to, amount);
     }
 
@@ -155,7 +203,7 @@ contract Snaxpot is
 
         if (reqType == VrfRequestType.SEED) {
             epoch.vrfSeed = randomWords[0];
-            // TODO: emit EpochOpened(epochId, epoch.vrfSeed, block.timestamp);
+            emit EpochOpened(epochId, epoch.vrfSeed, epoch.startTimestamp);
         } else {
             (uint8[5] memory balls, uint8 snaxBall) = _deriveBalls(randomWords);
             epoch.winningBall1 = balls[0];

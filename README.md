@@ -124,6 +124,7 @@ Week N                          Week N+1                        Week N+2
 
 3.  Operator calls closeEpoch(epochId)
       → Requires epoch state == OPEN
+      → Snapshots currentJackpot into epoch.jackpotAmount, resets currentJackpot to 0
       → Epoch state → CLOSED
       → event EpochClosed(epochId, closeTimestamp)
 
@@ -237,15 +238,15 @@ mapping(uint256 => uint256) public epochJackpot;       // frozen snapshot for a 
 
 **`currentJackpot`** is the real-time jackpot amount. It increases on every `fundJackpot()` call and on rollovers. The dashboard displays this value.
 
-**`epochJackpot[epochId]`** is set once, at the moment `drawJackpot(epochId)` is called. It snapshots `currentJackpot` at draw time and subtracts it from `currentJackpot`:
+**`epochJackpot[epochId]`** is set once, at the moment `closeEpoch(epochId)` is called. It snapshots `currentJackpot` at close time and resets `currentJackpot` to 0:
 
 ```
-drawJackpot(epochId):
+closeEpoch(epochId):
     epochJackpot[epochId] = currentJackpot
     currentJackpot = 0
 ```
 
-Any USDT deposited _after_ the snapshot (i.e., after `drawJackpot()` but before or during the next epoch) goes into the next epoch's pot automatically since it adds to `currentJackpot` which starts fresh at 0.
+Any USDT deposited _after_ the snapshot (i.e., after `closeEpoch()` but before or during the next epoch) goes into the next epoch's pot automatically since it adds to `currentJackpot` which starts fresh at 0.
 
 ### 6.3 Rollover
 
@@ -256,7 +257,7 @@ currentJackpot += epochJackpot[epochId]
 epochJackpot[epochId] = 0  // or leave as historical record and track rollover separately
 ```
 
-The unclaimed amount flows back into `currentJackpot`, stacking on top of any new deposits that arrived since the draw. No USDT moves — it's purely internal accounting.
+The unclaimed amount flows back into `currentJackpot`, stacking on top of any new deposits that arrived since close. No USDT moves — it's purely internal accounting.
 
 ### 6.4 Winner Payout
 
@@ -267,7 +268,7 @@ On `resolveJackpot(epochId, ...)`:
 3. Records the claim entitlement: `JackpotClaimer.credit(winner, amount)`.
 4. `epochJackpot[epochId]` marked as claimed.
 
-`currentJackpot` is unaffected — it already had the snapshot subtracted at draw time and may have new deposits accumulating for the next draw.
+`currentJackpot` is unaffected — it already had the snapshot subtracted at close time and may have new deposits accumulating for the next draw.
 
 ### 6.5 Funding Timeline Example
 
@@ -282,7 +283,7 @@ fundJackpot(100)                                     │
                           currentJackpot = 350       │
                                                      │
                               ── epoch closes ──     │
-                              drawJackpot(N)         │
+                              closeEpoch(N)          │
                                 epochJackpot[N]=350  │
                                 currentJackpot = 0   │
                                                      │
@@ -323,7 +324,7 @@ function reconcileUSDT() external onlyAdmin {
 ```
 
 - Admin-only.
-- `totalAccountedUSDT` is updated on every `fundJackpot()`, `drawJackpot()`, `resolveJackpot()`, and rollover to stay in sync.
+- `totalAccountedUSDT` is updated on every `fundJackpot()`, `closeEpoch()`, `resolveJackpot()`, and rollover to stay in sync.
 
 **USDT quirks**:
 
