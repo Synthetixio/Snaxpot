@@ -8,4 +8,8 @@ import {IJackpotClaimer} from "./interfaces/IJackpotClaimer.sol";
 
 contract JackpotClaimer is IJackpotClaimer {
     using SafeERC20 for IERC20;
+
+    function credit(address winner, uint256 epochId, uint256 amount) external override {
+        // TODO: implement credit logic
+    }
 }

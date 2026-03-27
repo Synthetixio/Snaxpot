@@ -154,6 +154,95 @@ contract Snaxpot is
         emit MerkleRootCommitted(epochId, root);
     }
 
+    // DRAWN → RESOLVED (jackpot winner(s) found)
+    function resolveJackpot(uint256 epochId, uint8[5] calldata balls, uint8 snaxBall, JackpotWinner[] calldata winners)
+        external
+        onlyRole(OPERATOR_ROLE)
+        whenNotPaused
+    {
+        EpochData storage epoch = epochs[epochId];
+        if (epoch.state != EpochState.DRAWN) {
+            revert InvalidEpochState(epochId, epoch.state, EpochState.DRAWN);
+        }
+        if (winners.length == 0) revert NoWinners();
+
+        if (!_ballsMatch(epoch, balls, snaxBall)) {
+            revert WinningNumbersMismatch();
+        }
+
+        uint8[5] memory sorted = _sortBalls(balls);
+
+        for (uint256 i; i < winners.length; i++) {
+            bytes32 leaf = keccak256(
+                bytes.concat(keccak256(abi.encode(winners[i].winner, sorted, snaxBall, winners[i].ticketIndex)))
+            );
+            if (!MerkleProof.verify(winners[i].merkleProof, epoch.merkleRoot, leaf)) {
+                revert InvalidMerkleProof();
+            }
+        }
+
+        epoch.jackpotClaimed = true;
+        epoch.state = EpochState.RESOLVED;
+
+        // Integer division may leave dust; reconcileUSDT() sweeps it later.
+        uint256 share = epoch.jackpotAmount / winners.length;
+        uint256 paid = share * winners.length;
+        totalAccountedUSDT -= paid;
+
+        for (uint256 i; i < winners.length; i++) {
+            usdt.forceApprove(address(jackpotClaimer), share);
+            jackpotClaimer.credit(winners[i].winner, epochId, share);
+            emit JackpotWon(epochId, winners[i].winner, share);
+        }
+    }
+
+    /// @dev Checks whether a ticket's balls match the winning balls, regardless
+    /// of order. Works by building a "bitmask" for each set and comparing them.
+    ///
+    /// A bitmask is a single uint256 where each ball number "flips on" one bit.
+    /// For example, if a ball is 3, we set bit 3: `1 << 3` = ...001000.
+    /// If balls are {3, 7, 12}, the mask is: bit 3 ON | bit 7 ON | bit 12 ON.
+    ///
+    /// Two sets of balls contain the same numbers (in any order) if and only if
+    /// their masks are identical. Duplicates are also caught: if a ticket has
+    /// [3, 3, 7, 12, 20], only 4 bits get set instead of 5, so it can never
+    /// equal a mask built from 5 distinct winning balls.
+    function _ballsMatch(EpochData storage epoch, uint8[5] calldata balls, uint8 snaxBall)
+        internal
+        view
+        returns (bool)
+    {
+        if (snaxBall != epoch.winningSnaxBall) return false;
+
+        // Build a mask from the epoch's winning balls (each `1 << ballNumber`
+        // turns on exactly one bit, then OR merges them into a single number).
+        uint256 winningMask = (1 << epoch.winningBall1) | (1 << epoch.winningBall2) | (1 << epoch.winningBall3)
+            | (1 << epoch.winningBall4) | (1 << epoch.winningBall5);
+
+        // Build the same kind of mask from the ticket's balls.
+        uint256 ticketMask;
+        for (uint256 i; i < 5; i++) {
+            ticketMask |= 1 << balls[i];
+        }
+
+        // If both masks are equal, the ticket has the exact same set of numbers.
+        return winningMask == ticketMask;
+    }
+
+    /// @dev Insertion sort — cheap for 5 elements.
+    function _sortBalls(uint8[5] calldata balls) internal pure returns (uint8[5] memory sorted) {
+        sorted = balls;
+        for (uint256 i = 1; i < 5; i++) {
+            uint8 key = sorted[i];
+            uint256 j = i;
+            while (j > 0 && sorted[j - 1] > key) {
+                sorted[j] = sorted[j - 1];
+                j--;
+            }
+            sorted[j] = key;
+        }
+    }
+
     // ─── Admin ───────────────────────────────────────────────────────
 
     function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
