@@ -88,6 +88,31 @@ contract Snaxpot is
 
     // ─── Admin ───────────────────────────────────────────────────────
 
+    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        paused = true;
+    }
+
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        paused = false;
+    }
+
+    function setJackpotClaimer(address _jackpotClaimer) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_jackpotClaimer != address(0), "zero address");
+        jackpotClaimer = IJackpotClaimer(_jackpotClaimer);
+    }
+
+    function setVrfConfig(
+        uint256 _subscriptionId,
+        bytes32 _keyHash,
+        uint32 _callbackGasLimit,
+        uint16 _requestConfirmations
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        vrfSubscriptionId = _subscriptionId;
+        vrfKeyHash = _keyHash;
+        vrfCallbackGasLimit = _callbackGasLimit;
+        vrfRequestConfirmations = _requestConfirmations;
+    }
+
     /// @notice Recover non-USDT ERC-20 tokens accidentally sent to this contract.
     function rescueToken(address token, address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(token != address(usdt), "cannot withdraw USDT");
@@ -103,31 +128,6 @@ contract Snaxpot is
             totalAccountedUSDT += surplus;
             emit JackpotFunded(surplus, currentJackpot);
         }
-    }
-
-    function setJackpotClaimer(address _jackpotClaimer) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_jackpotClaimer != address(0), "zero address");
-        jackpotClaimer = IJackpotClaimer(_jackpotClaimer);
-    }
-
-    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        paused = true;
-    }
-
-    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        paused = false;
-    }
-
-    function setVrfConfig(
-        uint256 _subscriptionId,
-        bytes32 _keyHash,
-        uint32 _callbackGasLimit,
-        uint16 _requestConfirmations
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        vrfSubscriptionId = _subscriptionId;
-        vrfKeyHash = _keyHash;
-        vrfCallbackGasLimit = _callbackGasLimit;
-        vrfRequestConfirmations = _requestConfirmations;
     }
 
     // ─── VRF ──────────────────────────────────────────────────────────
