@@ -62,6 +62,10 @@ contract Snaxpot is
         _disableInitializers();
     }
 
+    /// @notice Deploy requires CREATE2 to resolve circular dependency:
+    ///   1. Precompute JackpotClaimer address via CREATE2 salt
+    ///   2. Deploy Snaxpot proxy → initialize(_jackpotClaimer = precomputed address)
+    ///   3. Deploy JackpotClaimer via CREATE2 → constructor(_snaxpot = proxy address)
     function initialize(
         address _admin,
         address _operator,
@@ -73,6 +77,8 @@ contract Snaxpot is
         uint32 _vrfCallbackGasLimit,
         uint16 _vrfRequestConfirmations
     ) external initializer {
+        if (_jackpotClaimer == address(0)) revert ZeroAddress();
+
         __AccessControl_init();
         __VRFConsumerBaseV2Plus_init(_vrfCoordinator);
 
