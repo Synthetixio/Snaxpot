@@ -314,6 +314,15 @@ contract Snaxpot is
         }
     }
 
+    // ─── External ────────────────────────────────────────────────────
+
+    function fundJackpot(uint256 amount) external whenNotPaused {
+        usdt.safeTransferFrom(msg.sender, address(this), amount);
+        currentJackpot += amount;
+        totalAccountedUSDT += amount;
+        emit JackpotFunded(amount, currentJackpot);
+    }
+
     // ─── VRF ──────────────────────────────────────────────────────────
 
     function _requestVrf(uint256 epochId, VrfRequestType reqType) internal returns (uint256 requestId) {

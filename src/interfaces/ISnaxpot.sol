@@ -104,7 +104,7 @@ interface ISnaxpot {
     ) external;
 
     // ─── External ──────────────────────────────────────────────
-    // function fundJackpot(uint256 amount) external;
+    function fundJackpot(uint256 amount) external;
 
     // ─── View ────────────────────────────────────────────────────────
     // function currentEpochId() external view returns (uint256);
