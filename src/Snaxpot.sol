@@ -96,12 +96,16 @@ contract Snaxpot is
     }
 
     // OPEN → CLOSED
-    function closeEpoch(uint256 epochId) external onlyRole(OPERATOR_ROLE) whenNotPaused {
+    function closeEpoch(
+        uint256 epochId
+    ) external onlyRole(OPERATOR_ROLE) whenNotPaused {
         _closeEpoch(epochId);
     }
 
     // OPEN → CLOSED (old) + NONE → OPEN (new)
-    function closeAndOpenNewEpoch(uint256 epochId) external onlyRole(OPERATOR_ROLE) whenNotPaused {
+    function closeAndOpenNewEpoch(
+        uint256 epochId
+    ) external onlyRole(OPERATOR_ROLE) whenNotPaused {
         _closeEpoch(epochId);
         _openEpoch();
     }
@@ -138,7 +142,10 @@ contract Snaxpot is
     }
 
     // CLOSED → DRAWING (requests VRF draw)
-    function commitMerkleRootAndDraw(uint256 epochId, bytes32 root) external onlyRole(OPERATOR_ROLE) whenNotPaused {
+    function commitMerkleRootAndDraw(
+        uint256 epochId,
+        bytes32 root
+    ) external onlyRole(OPERATOR_ROLE) whenNotPaused {
         EpochData storage epoch = epochs[epochId];
         if (epoch.state != EpochState.CLOSED) {
             revert InvalidEpochState(epochId, epoch.state, EpochState.CLOSED);
@@ -154,12 +161,30 @@ contract Snaxpot is
         emit MerkleRootCommitted(epochId, root);
     }
 
+    // DRAWN → RESOLVED (no jackpot winner — roll funds to next epoch)
+    function resolveJackpotNoWinner(
+        uint256 epochId
+    ) external onlyRole(OPERATOR_ROLE) whenNotPaused {
+        EpochData storage epoch = epochs[epochId];
+        if (epoch.state != EpochState.DRAWN) {
+            revert InvalidEpochState(epochId, epoch.state, EpochState.DRAWN);
+        }
+
+        epoch.state = EpochState.RESOLVED;
+
+        uint256 rolled = epoch.jackpotAmount;
+        currentJackpot += rolled;
+
+        emit JackpotRolledOver(epochId, rolled);
+    }
+
     // DRAWN → RESOLVED (jackpot winner(s) found)
-    function resolveJackpot(uint256 epochId, uint8[5] calldata balls, uint8 snaxBall, JackpotWinner[] calldata winners)
-        external
-        onlyRole(OPERATOR_ROLE)
-        whenNotPaused
-    {
+    function resolveJackpot(
+        uint256 epochId,
+        uint8[5] calldata balls,
+        uint8 snaxBall,
+        JackpotWinner[] calldata winners
+    ) external onlyRole(OPERATOR_ROLE) whenNotPaused {
         EpochData storage epoch = epochs[epochId];
         if (epoch.state != EpochState.DRAWN) {
             revert InvalidEpochState(epochId, epoch.state, EpochState.DRAWN);
@@ -174,9 +199,24 @@ contract Snaxpot is
 
         for (uint256 i; i < winners.length; i++) {
             bytes32 leaf = keccak256(
-                bytes.concat(keccak256(abi.encode(winners[i].winner, sorted, snaxBall, winners[i].ticketIndex)))
+                bytes.concat(
+                    keccak256(
+                        abi.encode(
+                            winners[i].winner,
+                            sorted,
+                            snaxBall,
+                            winners[i].ticketIndex
+                        )
+                    )
+                )
             );
-            if (!MerkleProof.verify(winners[i].merkleProof, epoch.merkleRoot, leaf)) {
+            if (
+                !MerkleProof.verify(
+                    winners[i].merkleProof,
+                    epoch.merkleRoot,
+                    leaf
+                )
+            ) {
                 revert InvalidMerkleProof();
             }
         }
@@ -207,17 +247,20 @@ contract Snaxpot is
     /// their masks are identical. Duplicates are also caught: if a ticket has
     /// [3, 3, 7, 12, 20], only 4 bits get set instead of 5, so it can never
     /// equal a mask built from 5 distinct winning balls.
-    function _ballsMatch(EpochData storage epoch, uint8[5] calldata balls, uint8 snaxBall)
-        internal
-        view
-        returns (bool)
-    {
+    function _ballsMatch(
+        EpochData storage epoch,
+        uint8[5] calldata balls,
+        uint8 snaxBall
+    ) internal view returns (bool) {
         if (snaxBall != epoch.winningSnaxBall) return false;
 
         // Build a mask from the epoch's winning balls (each `1 << ballNumber`
         // turns on exactly one bit, then OR merges them into a single number).
-        uint256 winningMask = (1 << epoch.winningBall1) | (1 << epoch.winningBall2) | (1 << epoch.winningBall3)
-            | (1 << epoch.winningBall4) | (1 << epoch.winningBall5);
+        uint256 winningMask = (1 << epoch.winningBall1) |
+            (1 << epoch.winningBall2) |
+            (1 << epoch.winningBall3) |
+            (1 << epoch.winningBall4) |
+            (1 << epoch.winningBall5);
 
         // Build the same kind of mask from the ticket's balls.
         uint256 ticketMask;
@@ -230,7 +273,9 @@ contract Snaxpot is
     }
 
     /// @dev Insertion sort — cheap for 5 elements.
-    function _sortBalls(uint8[5] calldata balls) internal pure returns (uint8[5] memory sorted) {
+    function _sortBalls(
+        uint8[5] calldata balls
+    ) internal pure returns (uint8[5] memory sorted) {
         sorted = balls;
         for (uint256 i = 1; i < 5; i++) {
             uint8 key = sorted[i];
@@ -253,7 +298,9 @@ contract Snaxpot is
         paused = false;
     }
 
-    function setJackpotClaimer(address _jackpotClaimer) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setJackpotClaimer(
+        address _jackpotClaimer
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_jackpotClaimer == address(0)) revert ZeroAddress();
         jackpotClaimer = IJackpotClaimer(_jackpotClaimer);
     }
@@ -271,7 +318,11 @@ contract Snaxpot is
     }
 
     /// @notice Recover non-USDT ERC-20 tokens accidentally sent to this contract.
-    function rescueToken(address token, address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function rescueToken(
+        address token,
+        address to,
+        uint256 amount
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (token == address(usdt)) revert CannotWithdrawUSDT();
         IERC20(token).safeTransfer(to, amount);
     }
@@ -289,7 +340,10 @@ contract Snaxpot is
 
     // ─── VRF ──────────────────────────────────────────────────────────
 
-    function _requestVrf(uint256 epochId, VrfRequestType reqType) internal returns (uint256 requestId) {
+    function _requestVrf(
+        uint256 epochId,
+        VrfRequestType reqType
+    ) internal returns (uint256 requestId) {
         requestId = s_vrfCoordinator.requestRandomWords(
             VRFV2PlusClient.RandomWordsRequest({
                 keyHash: vrfKeyHash,
@@ -297,7 +351,9 @@ contract Snaxpot is
                 requestConfirmations: vrfRequestConfirmations,
                 callbackGasLimit: vrfCallbackGasLimit,
                 numWords: reqType == VrfRequestType.SEED ? 1 : 6,
-                extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: false}))
+                extraArgs: VRFV2PlusClient._argsToBytes(
+                    VRFV2PlusClient.ExtraArgsV1({nativePayment: false})
+                )
             })
         );
 
@@ -305,7 +361,10 @@ contract Snaxpot is
         vrfRequestType[requestId] = reqType;
     }
 
-    function fulfillRandomWords(uint256 requestId, uint256[] calldata randomWords) internal override {
+    function fulfillRandomWords(
+        uint256 requestId,
+        uint256[] calldata randomWords
+    ) internal override {
         uint256 epochId = vrfRequestToEpoch[requestId];
         EpochData storage epoch = epochs[epochId];
         VrfRequestType reqType = vrfRequestType[requestId];
@@ -330,18 +389,18 @@ contract Snaxpot is
     }
 
     /// @dev Derive 5 unique main balls [1,BALL_MAX] + 1 snax ball [1,SNAX_BALL_MAX] from 6 VRF words.
-    function _deriveBalls(uint256[] calldata randomWords)
-        internal
-        pure
-        returns (uint8[5] memory balls, uint8 snaxBall)
-    {
+    function _deriveBalls(
+        uint256[] calldata randomWords
+    ) internal pure returns (uint8[5] memory balls, uint8 snaxBall) {
         uint256 usedMask;
         uint8 count;
 
         for (uint8 i = 0; count < 5; i++) {
             // Use VRF word directly for first 5 iterations; if collisions force extra
             // iterations beyond the 5 words, derive fresh entropy via keccak.
-            uint256 rand = i < 5 ? randomWords[i] : uint256(keccak256(abi.encodePacked(randomWords[i - 1], i)));
+            uint256 rand = i < 5
+                ? randomWords[i]
+                : uint256(keccak256(abi.encodePacked(randomWords[i - 1], i)));
             uint8 ball = uint8((rand % BALL_MAX) + 1);
             uint256 bit = uint256(1) << ball;
 
@@ -373,5 +432,7 @@ contract Snaxpot is
 
     // ─── OTHER ────────────────────────────────────────────────────
 
-    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    function _authorizeUpgrade(
+        address
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 }
