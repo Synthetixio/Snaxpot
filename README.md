@@ -354,12 +354,14 @@ function sweepExpired(address winner) external;              // admin-only, recl
 
 ## 8. Merkle Tree — Ticket Commitment
 
-### 8.1 Leaf Format
+We use OpenZeppelin's [`@openzeppelin/merkle-tree`](https://github.com/OpenZeppelin/merkle-tree) (`StandardMerkleTree`) for both off-chain tree construction and on-chain proof verification. This means **all leaf hashing follows OZ's convention**: double-hashed with `abi.encode` (not `abi.encodePacked`).
 
-Each ticket is one leaf:
+### 8.1 Leaf Format (OZ double-hash)
+
+Each ticket is one leaf. The leaf value stored in the tree is:
 
 ```
-leaf = keccak256(abi.encodePacked(
+leaf = keccak256(bytes.concat(keccak256(abi.encode(
     trader,          // address — ticket owner
     epochId,         // uint256 — epoch identifier
     balls[0],        // uint8 — sorted ascending
@@ -369,23 +371,103 @@ leaf = keccak256(abi.encodePacked(
     balls[4],        // uint8
     snaxBall,        // uint8
     ticketIndex      // uint256 — unique index within trader's tickets for this epoch
-))
+))))
 ```
+
+**Why double-hash?** OpenZeppelin double-hashes leaves (`keccak256(bytes.concat(keccak256(...)))`) so that leaf hashes can never collide with internal node hashes (second preimage resistance). The inner hash produces the raw digest; the outer hash domain-separates it from branch nodes.
+
+**Why `abi.encode` (not `abi.encodePacked`)?** `abi.encode` pads each value to 32 bytes, eliminating ambiguity when adjacent dynamic-length or small-width types are packed together. This matches what `StandardMerkleTree` does internally.
 
 **Ball ordering**: The 5 standard balls MUST be sorted in ascending order before hashing. This ensures the same set of numbers always produces the same leaf hash regardless of selection order. The contract enforces sorted order when verifying.
 
 **One leaf per ticket**: If Alice has 3 tickets, the tree contains 3 separate leaves (each with different numbers and a unique `ticketIndex`). A trader with 500 tickets produces 500 leaves.
 
-### 8.2 Tree Construction
+### 8.2 Tree Construction (off-chain)
 
-The operator builds a standard binary Merkle tree (OpenZeppelin-compatible) over all ticket leaves for the epoch:
+The operator builds the tree using `StandardMerkleTree` from `@openzeppelin/merkle-tree`:
 
-- Leaves are sorted.
-- Uses the leaf-pair hashing scheme from OpenZeppelin's `MerkleProof` library.
+```js
+import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
+
+const leaves = tickets.map(t => [
+  t.trader,       // address
+  t.epochId,      // uint256
+  t.balls[0],     // uint8
+  t.balls[1],     // uint8
+  t.balls[2],     // uint8
+  t.balls[3],     // uint8
+  t.balls[4],     // uint8
+  t.snaxBall,     // uint8
+  t.ticketIndex,  // uint256
+]);
+
+const tree = StandardMerkleTree.of(leaves, [
+  "address", "uint256",
+  "uint8", "uint8", "uint8", "uint8", "uint8",
+  "uint8", "uint256"
+]);
+
+// tree.root   — bytes32 to commit on-chain
+// tree.getProof(i) — proof for leaf i
+```
+
+`StandardMerkleTree` handles the double-hashing and sorted-pair internal hashing automatically. Do **not** manually hash leaves before passing them in — the library does it for you.
+
+### 8.2.1 Algorithm Specification (language-agnostic)
+
+If you are **not** using `@openzeppelin/merkle-tree` (e.g. building the tree in Go, Rust, Python), you must replicate the exact algorithm. Three things must match or proofs will fail on-chain.
+
+#### Step 1 — ABI-encode each leaf value into a 288-byte buffer
+
+`abi.encode` pads every value to exactly 32 bytes, big-endian, left-padded with zeroes:
+
+```
+Offset  Type      Encoding (32 bytes each)
+------  --------  -----------------------------------------------
+  0     address   0x000000000000000000000000 ++ <20-byte address>
+ 32     uint256   <32-byte big-endian epochId>
+ 64     uint8     0x00...00 ++ <1-byte balls[0]>          (31 zero bytes + 1)
+ 96     uint8     0x00...00 ++ <1-byte balls[1]>
+128     uint8     0x00...00 ++ <1-byte balls[2]>
+160     uint8     0x00...00 ++ <1-byte balls[3]>
+192     uint8     0x00...00 ++ <1-byte balls[4]>
+224     uint8     0x00...00 ++ <1-byte snaxBall>
+256     uint256   <32-byte big-endian ticketIndex>
+------
+Total: 9 × 32 = 288 bytes
+```
+
+#### Step 2 — Double-hash to get the leaf node
+
+```
+innerHash = keccak256(encodedBuffer)          // 32 bytes
+leafHash  = keccak256(innerHash)              // 32 bytes — this is the leaf node in the tree
+```
+
+#### Step 3 — Build the tree with sorted-pair hashing
+
+1. Compute `leafHash` for every ticket.
+2. **Sort** all leaf hashes in ascending byte order.
+3. Build the tree bottom-up. For each pair of sibling nodes `(a, b)`:
+   - If `a <= b` (byte comparison): `parent = keccak256(a ++ b)` (64-byte input)
+   - If `a > b`: `parent = keccak256(b ++ a)`
+   - i.e. always sort the pair before hashing.
+4. If a level has an odd number of nodes, the last node is promoted to the next level without hashing.
+5. The final single node is the **Merkle root**.
+
+**Proof generation**: for a given leaf at index `i`, the proof is the list of sibling hashes from bottom to top. The verifier walks the proof, sorted-pair hashing at each level, and checks that the result equals the root.
+
+#### Implementation notes
+
+- **Go**: `go-ethereum/accounts/abi` — use `Arguments.Pack(...)` which produces identical output to Solidity `abi.encode`. Use `sha3.NewLegacyKeccak256()` from `golang.org/x/crypto/sha3` for keccak256.
+- **Rust**: `alloy` or `ethabi` crate for ABI encoding; `tiny-keccak` or `sha3` crate for hashing.
+- **Python**: `eth_abi.encode(...)` + `Web3.keccak(...)`.
+
+In all cases, verify your implementation against the JS `StandardMerkleTree` on a small test set before deploying.
 
 ### 8.3 Publication and Verification
 
-- The operator publishes the full tree data (all leaves + proofs) via IPFS or API.
+- The operator publishes the full tree data (all leaves + proofs) via IPFS or API. The `StandardMerkleTree` can be serialized with `tree.dump()` and restored with `StandardMerkleTree.load(...)`.
 - Any user can verify their tickets are in the tree by recomputing their leaf hash and checking the proof against the on-chain root.
 - The dashboard shows per-user tickets with Merkle proofs of inclusion.
 - During jackpot settlement, the contract verifies winning tickets on-chain using `MerkleProof.verify()`.
@@ -400,6 +482,8 @@ The operator builds a standard binary Merkle tree (OpenZeppelin-compatible) over
 
 ### 8.5 On-Chain Verification (jackpot only)
 
+The on-chain leaf hash **must** mirror the OZ double-hash so proofs validate correctly:
+
 ```solidity
 function _verifyTicket(
     uint256 epochId,
@@ -412,14 +496,16 @@ function _verifyTicket(
     require(balls[0] <= balls[1] && balls[1] <= balls[2] &&
             balls[2] <= balls[3] && balls[3] <= balls[4], "unsorted");
 
-    bytes32 leaf = keccak256(abi.encodePacked(
+    bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(
         trader, epochId,
         balls[0], balls[1], balls[2], balls[3], balls[4],
         snaxBall, ticketIndex
-    ));
+    ))));
     return MerkleProof.verify(proof, epochMerkleRoots[epochId], leaf);
 }
 ```
+
+> **Critical**: both sides must use `abi.encode` + double `keccak256`. If either the off-chain tree or the on-chain verifier uses a different encoding (`abi.encodePacked`) or a single hash, proofs will fail.
 
 ---
 
