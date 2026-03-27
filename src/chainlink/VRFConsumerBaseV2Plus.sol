@@ -11,7 +11,8 @@ import {IVRFCoordinatorV2Plus} from "./interfaces/IVRFCoordinatorV2Plus.sol";
 import {IVRFMigratableConsumerV2Plus} from "./interfaces/IVRFMigratableConsumerV2Plus.sol";
 import {ConfirmedOwner} from "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
 
-/** ****************************************************************************
+/**
+ ****************************************************************************
  * @notice Interface for contracts using VRF randomness
  * *****************************************************************************
  * @dev PURPOSE
@@ -104,16 +105,9 @@ import {ConfirmedOwner} from "@chainlink/contracts/src/v0.8/shared/access/Confir
  * @dev responding to the request (however this is not enforced in the contract
  * @dev and so remains effective only in the case of unmodified oracle software).
  */
-abstract contract VRFConsumerBaseV2Plus is
-    IVRFMigratableConsumerV2Plus,
-    ConfirmedOwner
-{
+abstract contract VRFConsumerBaseV2Plus is IVRFMigratableConsumerV2Plus, ConfirmedOwner {
     error OnlyCoordinatorCanFulfill(address have, address want);
-    error OnlyOwnerOrCoordinator(
-        address have,
-        address owner,
-        address coordinator
-    );
+    error OnlyOwnerOrCoordinator(address have, address owner, address coordinator);
     error ZeroAddress();
 
     // s_vrfCoordinator should be used by consumers to make requests to vrfCoordinator
@@ -145,23 +139,14 @@ abstract contract VRFConsumerBaseV2Plus is
      * @param randomWords the VRF output expanded to the requested number of words
      */
     // solhint-disable-next-line chainlink-solidity/prefix-internal-functions-with-underscore
-    function fulfillRandomWords(
-        uint256 requestId,
-        uint256[] calldata randomWords
-    ) internal virtual;
+    function fulfillRandomWords(uint256 requestId, uint256[] calldata randomWords) internal virtual;
 
     // rawFulfillRandomness is called by VRFCoordinator when it receives a valid VRF
     // proof. rawFulfillRandomness then calls fulfillRandomness, after validating
     // the origin of the call
-    function rawFulfillRandomWords(
-        uint256 requestId,
-        uint256[] calldata randomWords
-    ) external {
+    function rawFulfillRandomWords(uint256 requestId, uint256[] calldata randomWords) external {
         if (msg.sender != address(s_vrfCoordinator)) {
-            revert OnlyCoordinatorCanFulfill(
-                msg.sender,
-                address(s_vrfCoordinator)
-            );
+            revert OnlyCoordinatorCanFulfill(msg.sender, address(s_vrfCoordinator));
         }
         fulfillRandomWords(requestId, randomWords);
     }
@@ -169,9 +154,7 @@ abstract contract VRFConsumerBaseV2Plus is
     /**
      * @inheritdoc IVRFMigratableConsumerV2Plus
      */
-    function setCoordinator(
-        address _vrfCoordinator
-    ) external override onlyOwnerOrCoordinator {
+    function setCoordinator(address _vrfCoordinator) external override onlyOwnerOrCoordinator {
         if (_vrfCoordinator == address(0)) {
             revert ZeroAddress();
         }
@@ -181,11 +164,7 @@ abstract contract VRFConsumerBaseV2Plus is
 
     modifier onlyOwnerOrCoordinator() {
         if (msg.sender != owner() && msg.sender != address(s_vrfCoordinator)) {
-            revert OnlyOwnerOrCoordinator(
-                msg.sender,
-                owner(),
-                address(s_vrfCoordinator)
-            );
+            revert OnlyOwnerOrCoordinator(msg.sender, owner(), address(s_vrfCoordinator));
         }
         _;
     }

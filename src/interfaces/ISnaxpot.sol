@@ -6,6 +6,7 @@ interface ISnaxpot {
         OPEN,
         CLOSED,
         DRAWING,
+        DRAWN,
         RESOLVED
     }
 
@@ -42,11 +43,12 @@ interface ISnaxpot {
     // event EpochOpened(uint256 indexed epochId, uint256 vrfSeed, uint256 startTimestamp);
     // event EpochClosed(uint256 indexed epochId, uint256 closeTimestamp);
     // event MerkleRootCommitted(uint256 indexed epochId, bytes32 root);
-    // event WinningNumbersDrawn(uint256 indexed epochId, uint8[5] balls, uint8 snaxBall, uint256 vrfRequestId);
+    event WinningNumbersDrawn(uint256 indexed epochId, uint8[5] balls, uint8 snaxBall, uint256 vrfRequestId);
     // event JackpotWon(uint256 indexed epochId, address indexed winner, uint256 amount);
     // event JackpotRolledOver(uint256 indexed epochId, uint256 rolledAmount);
     // event SmallPrizesResolved(uint256 indexed epochId, uint256 totalAmount, uint256 winnerCount);
     event JackpotFunded(uint256 amount, uint256 newTotal);
+
     // event TicketAdded(uint256 indexed epochId, address indexed trader, uint8[5] balls, uint8 snaxBall, uint256 ticketIndex);
 
     // ─── Operator ─────────────────────────────────────────────────────
@@ -69,11 +71,21 @@ interface ISnaxpot {
 
     // ─── Admin ───────────────────────────────────────────────────────
     function rescueToken(address token, address to, uint256 amount) external;
+
     function reconcileUSDT() external;
+
     function setJackpotClaimer(address _jackpotClaimer) external;
+
     function pause() external;
+
     function unpause() external;
-    function setVrfConfig(uint256 _subscriptionId, bytes32 _keyHash, uint32 _callbackGasLimit, uint16 _requestConfirmations) external;
+
+    function setVrfConfig(
+        uint256 _subscriptionId,
+        bytes32 _keyHash,
+        uint32 _callbackGasLimit,
+        uint16 _requestConfirmations
+    ) external;
 
     // ─── External ──────────────────────────────────────────────
     // function fundJackpot(uint256 amount) external;

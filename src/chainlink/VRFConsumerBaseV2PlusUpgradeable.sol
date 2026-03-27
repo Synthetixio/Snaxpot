@@ -17,16 +17,9 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {IVRFCoordinatorV2Plus} from "./interfaces/IVRFCoordinatorV2Plus.sol";
 import {IVRFMigratableConsumerV2Plus} from "./interfaces/IVRFMigratableConsumerV2Plus.sol";
 
-abstract contract VRFConsumerBaseV2PlusUpgradeable is
-    Initializable,
-    IVRFMigratableConsumerV2Plus
-{
+abstract contract VRFConsumerBaseV2PlusUpgradeable is Initializable, IVRFMigratableConsumerV2Plus {
     error OnlyCoordinatorCanFulfill(address have, address want);
-    error OnlyOwnerOrCoordinator(
-        address have,
-        address owner,
-        address coordinator
-    );
+    error OnlyOwnerOrCoordinator(address have, address owner, address coordinator);
     error ZeroAddress();
 
     // s_vrfCoordinator should be used by consumers to make requests to vrfCoordinator
@@ -36,9 +29,7 @@ abstract contract VRFConsumerBaseV2PlusUpgradeable is
     uint256[49] private __gap;
 
     // solhint-disable-next-line func-name-mixedcase
-    function __VRFConsumerBaseV2Plus_init(
-        address _vrfCoordinator
-    ) internal onlyInitializing {
+    function __VRFConsumerBaseV2Plus_init(address _vrfCoordinator) internal onlyInitializing {
         if (_vrfCoordinator == address(0)) {
             revert ZeroAddress();
         }
@@ -58,22 +49,13 @@ abstract contract VRFConsumerBaseV2PlusUpgradeable is
      * @param requestId The Id initially returned by requestRandomness
      * @param randomWords the VRF output expanded to the requested number of words
      */
-    function fulfillRandomWords(
-        uint256 requestId,
-        uint256[] calldata randomWords
-    ) internal virtual;
+    function fulfillRandomWords(uint256 requestId, uint256[] calldata randomWords) internal virtual;
 
     /// @dev rawFulfillRandomWords is called by VRFCoordinator when it receives a
     /// valid VRF proof. It then calls fulfillRandomWords after validating the caller.
-    function rawFulfillRandomWords(
-        uint256 requestId,
-        uint256[] calldata randomWords
-    ) external {
+    function rawFulfillRandomWords(uint256 requestId, uint256[] calldata randomWords) external {
         if (msg.sender != address(s_vrfCoordinator)) {
-            revert OnlyCoordinatorCanFulfill(
-                msg.sender,
-                address(s_vrfCoordinator)
-            );
+            revert OnlyCoordinatorCanFulfill(msg.sender, address(s_vrfCoordinator));
         }
         fulfillRandomWords(requestId, randomWords);
     }

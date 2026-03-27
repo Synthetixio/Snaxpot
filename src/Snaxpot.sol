@@ -85,11 +85,7 @@ contract Snaxpot is
     // ─── Admin ───────────────────────────────────────────────────────
 
     /// @notice Recover non-USDT ERC-20 tokens accidentally sent to this contract.
-    function rescueToken(
-        address token,
-        address to,
-        uint256 amount
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function rescueToken(address token, address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(token != address(usdt), "cannot withdraw USDT");
         IERC20(token).safeTransfer(to, amount);
     }
@@ -105,9 +101,7 @@ contract Snaxpot is
         }
     }
 
-    function setJackpotClaimer(
-        address _jackpotClaimer
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setJackpotClaimer(address _jackpotClaimer) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_jackpotClaimer != address(0), "zero address");
         jackpotClaimer = IJackpotClaimer(_jackpotClaimer);
     }
@@ -134,10 +128,7 @@ contract Snaxpot is
 
     // ─── VRF ──────────────────────────────────────────────────────────
 
-    function _requestVrf(
-        uint256 epochId,
-        VrfRequestType reqType
-    ) internal returns (uint256 requestId) {
+    function _requestVrf(uint256 epochId, VrfRequestType reqType) internal returns (uint256 requestId) {
         requestId = s_vrfCoordinator.requestRandomWords(
             VRFV2PlusClient.RandomWordsRequest({
                 keyHash: vrfKeyHash,
@@ -145,9 +136,7 @@ contract Snaxpot is
                 requestConfirmations: vrfRequestConfirmations,
                 callbackGasLimit: vrfCallbackGasLimit,
                 numWords: reqType == VrfRequestType.SEED ? 1 : 6,
-                extraArgs: VRFV2PlusClient._argsToBytes(
-                    VRFV2PlusClient.ExtraArgsV1({nativePayment: false})
-                )
+                extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: false}))
             })
         );
 
@@ -155,24 +144,66 @@ contract Snaxpot is
         vrfRequestType[requestId] = reqType;
     }
 
-    function fulfillRandomWords(
-        uint256 requestId,
-        uint256[] calldata randomWords
-    ) internal override {
+    function fulfillRandomWords(uint256 requestId, uint256[] calldata randomWords) internal override {
         uint256 epochId = vrfRequestToEpoch[requestId];
         EpochData storage epoch = epochs[epochId];
         VrfRequestType reqType = vrfRequestType[requestId];
 
         if (reqType == VrfRequestType.SEED) {
             epoch.vrfSeed = randomWords[0];
+            // TODO: emit EpochOpened(epochId, epoch.vrfSeed, block.timestamp);
         } else {
-            // DRAW — 6 random words: 5 main balls [1,BALL_MAX] + 1 snax ball [1,SNAX_BALL_MAX].
-            // Duplicates in main balls rejected via bitmask; collisions re-derived with keccak.
-            // TODO: _deriveBalls(randomWords) and set epoch winning fields, transition to RESOLVED.
+            (uint8[5] memory balls, uint8 snaxBall) = _deriveBalls(randomWords);
+            epoch.winningBall1 = balls[0];
+            epoch.winningBall2 = balls[1];
+            epoch.winningBall3 = balls[2];
+            epoch.winningBall4 = balls[3];
+            epoch.winningBall5 = balls[4];
+            epoch.winningSnaxBall = snaxBall;
+            epoch.state = EpochState.DRAWN;
+            emit WinningNumbersDrawn(epochId, balls, snaxBall, requestId);
         }
 
         delete vrfRequestToEpoch[requestId];
         delete vrfRequestType[requestId];
+    }
+
+    /// @dev Derive 5 unique main balls [1,BALL_MAX] + 1 snax ball [1,SNAX_BALL_MAX] from 6 VRF words.
+    function _deriveBalls(uint256[] calldata randomWords)
+        internal
+        pure
+        returns (uint8[5] memory balls, uint8 snaxBall)
+    {
+        uint256 usedMask;
+        uint8 count;
+
+        for (uint8 i = 0; count < 5; i++) {
+            // Use VRF word directly for first 5 iterations; if collisions force extra
+            // iterations beyond the 5 words, derive fresh entropy via keccak.
+            uint256 rand = i < 5 ? randomWords[i] : uint256(keccak256(abi.encodePacked(randomWords[i - 1], i)));
+            uint8 ball = uint8((rand % BALL_MAX) + 1);
+            uint256 bit = 1 << ball;
+
+            if (usedMask & bit == 0) {
+                // No collision — accept this ball
+                usedMask |= bit;
+                balls[count] = ball;
+                count++;
+            } else {
+                // Collision — re-hash until we land on an unused number
+                uint256 hash = rand;
+                while (usedMask & bit != 0) {
+                    hash = uint256(keccak256(abi.encodePacked(hash)));
+                    ball = uint8((hash % BALL_MAX) + 1);
+                    bit = 1 << ball;
+                }
+                usedMask |= bit;
+                balls[count] = ball;
+                count++;
+            }
+        }
+
+        snaxBall = uint8((randomWords[5] % SNAX_BALL_MAX) + 1);
     }
 
     function _checkAuthorizedToSetCoordinator() internal override {
@@ -181,7 +212,5 @@ contract Snaxpot is
 
     // ─── OTHER ────────────────────────────────────────────────────
 
-    function _authorizeUpgrade(
-        address
-    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 }
