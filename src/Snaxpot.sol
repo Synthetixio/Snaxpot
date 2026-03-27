@@ -90,28 +90,31 @@ contract Snaxpot is
 
     // ─── Operator ──────────────────────────────────────────────────────
 
+    // NONE → OPEN
     function openEpoch() external onlyRole(OPERATOR_ROLE) whenNotPaused {
         _openEpoch();
     }
 
+    // OPEN → CLOSED
     function closeEpoch(uint256 epochId) external onlyRole(OPERATOR_ROLE) whenNotPaused {
         _closeEpoch(epochId);
     }
 
+    // OPEN → CLOSED (old) + NONE → OPEN (new)
     function closeAndOpenNewEpoch(uint256 epochId) external onlyRole(OPERATOR_ROLE) whenNotPaused {
         _closeEpoch(epochId);
         _openEpoch();
     }
 
     function _openEpoch() internal {
-        if (currentEpochId > 0 && epochs[currentEpochId].state == EpochState.OPEN) {
-            revert EpochAlreadyOpen();
-        }
-
         currentEpochId++;
         uint256 epochId = currentEpochId;
 
         EpochData storage epoch = epochs[epochId];
+        if (epoch.state != EpochState.NONE) {
+            revert InvalidEpochState(epochId, epoch.state, EpochState.NONE);
+        }
+
         epoch.state = EpochState.OPEN;
         epoch.startTimestamp = uint40(block.timestamp);
 
@@ -132,6 +135,23 @@ contract Snaxpot is
         currentJackpot = 0;
 
         emit EpochClosed(epochId, snapshot, block.timestamp);
+    }
+
+    // CLOSED → DRAWING (requests VRF draw)
+    function commitMerkleRootAndDraw(uint256 epochId, bytes32 root) external onlyRole(OPERATOR_ROLE) whenNotPaused {
+        EpochData storage epoch = epochs[epochId];
+        if (epoch.state != EpochState.CLOSED) {
+            revert InvalidEpochState(epochId, epoch.state, EpochState.CLOSED);
+        }
+        if (root == bytes32(0)) revert ZeroMerkleRoot();
+
+        epoch.merkleRoot = root;
+        epoch.state = EpochState.DRAWING;
+
+        uint256 requestId = _requestVrf(epochId, VrfRequestType.DRAW);
+        epoch.vrfRequestId = requestId;
+
+        emit MerkleRootCommitted(epochId, root);
     }
 
     // ─── Admin ───────────────────────────────────────────────────────
