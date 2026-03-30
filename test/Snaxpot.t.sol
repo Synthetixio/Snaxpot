@@ -603,15 +603,232 @@ contract SnaxpotTest is Test {
         assertEq(snaxpot.totalAccountedUSDT(), 0);
     }
 
-    function test_resolveJackpot_whenNotOperator_reverts() public {}
+    function test_resolveJackpot_whenNotOperator_reverts() public {
+        uint256 epochId = _setUpDrawnEpochSingleWinner();
 
-    function test_resolveJackpot_whenPaused_reverts() public {}
+        ISnaxpot.JackpotWinner[] memory winners = new ISnaxpot.JackpotWinner[](1);
+        bytes32[] memory proof = new bytes32[](2);
+        proof[0] = LEAF_3;
+        proof[1] = H01;
+        winners[0] = ISnaxpot.JackpotWinner({winner: alice, ticketIndex: 1, merkleProof: proof});
 
-    function test_resolveJackpot_whenEpochNotDrawn_reverts() public {}
+        vm.startPrank(alice);
+        vm.expectRevert();
+        snaxpot.resolveJackpot(epochId, [uint8(5), 9, 13, 17, 21], 3, winners);
+        vm.stopPrank();
+    }
 
-    function test_resolveJackpot_whenNoWinners_reverts() public {}
+    function test_resolveJackpot_whenPaused_reverts() public {
+        uint256 epochId = _setUpDrawnEpochSingleWinner();
 
-    function test_resolveJackpot_whenBallsMismatch_reverts() public {}
+        vm.startPrank(admin);
+        snaxpot.pause();
+        vm.stopPrank();
 
-    function test_resolveJackpot_whenInvalidMerkleProof_reverts() public {}
+        ISnaxpot.JackpotWinner[] memory winners = new ISnaxpot.JackpotWinner[](1);
+        bytes32[] memory proof = new bytes32[](2);
+        proof[0] = LEAF_3;
+        proof[1] = H01;
+        winners[0] = ISnaxpot.JackpotWinner({winner: alice, ticketIndex: 1, merkleProof: proof});
+
+        vm.startPrank(operator);
+        vm.expectRevert(ISnaxpot.ContractPaused.selector);
+        snaxpot.resolveJackpot(epochId, [uint8(5), 9, 13, 17, 21], 3, winners);
+        vm.stopPrank();
+    }
+
+    function test_resolveJackpot_whenEpochNotDrawn_reverts() public {
+        vm.startPrank(operator);
+        snaxpot.openEpoch();
+        snaxpot.closeEpoch(1);
+
+        ISnaxpot.JackpotWinner[] memory winners = new ISnaxpot.JackpotWinner[](1);
+        winners[0] = ISnaxpot.JackpotWinner({winner: alice, ticketIndex: 0, merkleProof: new bytes32[](0)});
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ISnaxpot.InvalidEpochState.selector, 1, ISnaxpot.EpochState.CLOSED, ISnaxpot.EpochState.DRAWN
+            )
+        );
+        snaxpot.resolveJackpot(1, [uint8(1), 2, 3, 4, 5], 1, winners);
+        vm.stopPrank();
+    }
+
+    function test_resolveJackpot_whenNoWinners_reverts() public {
+        uint256 epochId = _setUpDrawnEpochSingleWinner();
+
+        ISnaxpot.JackpotWinner[] memory winners = new ISnaxpot.JackpotWinner[](0);
+
+        vm.startPrank(operator);
+        vm.expectRevert(ISnaxpot.NoWinners.selector);
+        snaxpot.resolveJackpot(epochId, [uint8(5), 9, 13, 17, 21], 3, winners);
+        vm.stopPrank();
+    }
+
+    function test_resolveJackpot_whenBallsMismatch_reverts() public {
+        uint256 epochId = _setUpDrawnEpochSingleWinner();
+
+        ISnaxpot.JackpotWinner[] memory winners = new ISnaxpot.JackpotWinner[](1);
+        winners[0] = ISnaxpot.JackpotWinner({winner: alice, ticketIndex: 1, merkleProof: new bytes32[](0)});
+
+        vm.startPrank(operator);
+        vm.expectRevert(ISnaxpot.WinningNumbersMismatch.selector);
+        snaxpot.resolveJackpot(epochId, [uint8(1), 2, 3, 4, 5], 1, winners);
+        vm.stopPrank();
+    }
+
+    function test_resolveJackpot_whenInvalidMerkleProof_reverts() public {
+        uint256 epochId = _setUpDrawnEpochSingleWinner();
+
+        ISnaxpot.JackpotWinner[] memory winners = new ISnaxpot.JackpotWinner[](1);
+        bytes32[] memory badProof = new bytes32[](2);
+        badProof[0] = bytes32(uint256(0xbad));
+        badProof[1] = bytes32(uint256(0xbad));
+        winners[0] = ISnaxpot.JackpotWinner({winner: alice, ticketIndex: 1, merkleProof: badProof});
+
+        vm.startPrank(operator);
+        vm.expectRevert(ISnaxpot.InvalidMerkleProof.selector);
+        snaxpot.resolveJackpot(epochId, [uint8(5), 9, 13, 17, 21], 3, winners);
+        vm.stopPrank();
+    }
+
+    function test_fundJackpot_happyPath() public {
+        uint256 amount = 500e6;
+        usdt.mint(alice, amount);
+
+        vm.startPrank(alice);
+        usdt.approve(address(snaxpot), amount);
+
+        vm.expectEmit(false, false, false, true, address(snaxpot));
+        emit ISnaxpot.JackpotFunded(amount, amount);
+
+        snaxpot.fundJackpot(amount);
+        vm.stopPrank();
+
+        assertEq(snaxpot.currentJackpot(), amount);
+        assertEq(snaxpot.totalAccountedUSDT(), amount);
+        assertEq(usdt.balanceOf(address(snaxpot)), amount);
+    }
+
+    function test_fundJackpot_whenPaused_reverts() public {
+        vm.prank(admin);
+        snaxpot.pause();
+
+        vm.prank(alice);
+        vm.expectRevert(ISnaxpot.ContractPaused.selector);
+        snaxpot.fundJackpot(100e6);
+    }
+
+    function test_pause_happyPath() public {
+        vm.prank(admin);
+        snaxpot.pause();
+        assertTrue(snaxpot.paused());
+    }
+
+    function test_unpause_happyPath() public {
+        vm.startPrank(admin);
+        snaxpot.pause();
+        snaxpot.unpause();
+        vm.stopPrank();
+        assertFalse(snaxpot.paused());
+    }
+
+    function test_pause_whenNotAdmin_reverts() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        snaxpot.pause();
+    }
+
+    function test_unpause_whenNotAdmin_reverts() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        snaxpot.unpause();
+    }
+
+    function test_setJackpotClaimer_happyPath() public {
+        address newClaimer = makeAddr("newClaimer");
+        vm.prank(admin);
+        snaxpot.setJackpotClaimer(newClaimer);
+        assertEq(address(snaxpot.jackpotClaimer()), newClaimer);
+    }
+
+    function test_setJackpotClaimer_whenZeroAddress_reverts() public {
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSignature("ZeroAddress()"));
+        snaxpot.setJackpotClaimer(address(0));
+    }
+
+    function test_setJackpotClaimer_whenNotAdmin_reverts() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        snaxpot.setJackpotClaimer(makeAddr("newClaimer"));
+    }
+
+    function test_setVrfConfig_happyPath() public {
+        vm.prank(admin);
+        snaxpot.setVrfConfig(42, bytes32(uint256(0xbeef)), 1_000_000, 5);
+
+        assertEq(snaxpot.vrfSubscriptionId(), 42);
+        assertEq(snaxpot.vrfKeyHash(), bytes32(uint256(0xbeef)));
+        assertEq(snaxpot.vrfCallbackGasLimit(), 1_000_000);
+        assertEq(snaxpot.vrfRequestConfirmations(), 5);
+    }
+
+    function test_setVrfConfig_whenNotAdmin_reverts() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        snaxpot.setVrfConfig(42, bytes32(uint256(0xbeef)), 1_000_000, 5);
+    }
+
+    function test_rescueToken_happyPath() public {
+        MockERC20 other = new MockERC20("Other", "OTH", 18);
+        other.mint(address(snaxpot), 1 ether);
+
+        vm.prank(admin);
+        snaxpot.rescueToken(address(other), bob, 1 ether);
+
+        assertEq(other.balanceOf(bob), 1 ether);
+        assertEq(other.balanceOf(address(snaxpot)), 0);
+    }
+
+    function test_rescueToken_whenUSDT_reverts() public {
+        vm.prank(admin);
+        vm.expectRevert(ISnaxpot.CannotWithdrawUSDT.selector);
+        snaxpot.rescueToken(address(usdt), bob, 1e6);
+    }
+
+    function test_rescueToken_whenNotAdmin_reverts() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        snaxpot.rescueToken(address(usdt), bob, 1e6);
+    }
+
+    function test_reconcileUSDT_happyPath() public {
+        uint256 surplus = 200e6;
+        usdt.mint(address(snaxpot), surplus);
+
+        vm.expectEmit(false, false, false, true, address(snaxpot));
+        emit ISnaxpot.JackpotFunded(surplus, surplus);
+
+        vm.prank(admin);
+        snaxpot.reconcileUSDT();
+
+        assertEq(snaxpot.currentJackpot(), surplus);
+        assertEq(snaxpot.totalAccountedUSDT(), surplus);
+    }
+
+    function test_reconcileUSDT_whenNoSurplus_noOp() public {
+        uint256 jackpotBefore = snaxpot.currentJackpot();
+
+        vm.prank(admin);
+        snaxpot.reconcileUSDT();
+
+        assertEq(snaxpot.currentJackpot(), jackpotBefore);
+    }
+
+    function test_reconcileUSDT_whenNotAdmin_reverts() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        snaxpot.reconcileUSDT();
+    }
 }
