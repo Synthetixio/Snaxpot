@@ -5,7 +5,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {IJackpotClaimer} from "./interfaces/IJackpotClaimer.sol";
-import {ISnaxpot} from "./interfaces/ISnaxpot.sol";
 
 contract JackpotClaimer is IJackpotClaimer {
     using SafeERC20 for IERC20;
@@ -70,10 +69,9 @@ contract JackpotClaimer is IJackpotClaimer {
         balances[winner] = 0;
         expiresAt[winner] = 0;
 
-        usdt.forceApprove(snaxpot, amount);
-        ISnaxpot(snaxpot).fundJackpot(amount);
+        usdt.safeTransfer(admin, amount);
 
-        emit Swept(winner, amount, snaxpot);
+        emit Swept(winner, amount, admin);
     }
 
     function claimableBalance(address user) external view override returns (uint256) {
