@@ -31,9 +31,9 @@ contract GenerateMerkleForTests is Script {
 
         bytes32[] memory leaves = new bytes32[](4);
         leaves[0] = _leaf(alice, [uint8(9), 11, 19, 21, 31], 4, 0);
-        leaves[1] = _leaf(bob,   [uint8(9), 11, 19, 21, 31], 4, 0);
-        leaves[2] = _leaf(alice, [uint8(5), 9, 13, 17, 21],  3, 1);
-        leaves[3] = _leaf(bob,   [uint8(1), 7, 12, 20, 28],  2, 1);
+        leaves[1] = _leaf(bob, [uint8(9), 11, 19, 21, 31], 4, 0);
+        leaves[2] = _leaf(alice, [uint8(5), 9, 13, 17, 21], 3, 1);
+        leaves[3] = _leaf(bob, [uint8(1), 7, 12, 20, 28], 2, 1);
 
         console2.log("\n--- Leaves ---");
         for (uint256 i; i < 4; i++) {
@@ -46,8 +46,10 @@ contract GenerateMerkleForTests is Script {
         bytes32 root = Hashes.commutativeKeccak256(h01, h23);
 
         console2.log("\n--- Internal nodes ---");
-        console2.log("h01:"); console2.logBytes32(h01);
-        console2.log("h23:"); console2.logBytes32(h23);
+        console2.log("h01:");
+        console2.logBytes32(h01);
+        console2.log("h23:");
+        console2.logBytes32(h23);
 
         console2.log("\n--- Root ---");
         console2.logBytes32(root);
@@ -72,16 +74,20 @@ contract GenerateMerkleForTests is Script {
         console2.log("\n--- Verification ---");
         bytes32[] memory p = new bytes32[](2);
 
-        p[0] = leaves[1]; p[1] = h23;
+        p[0] = leaves[1];
+        p[1] = h23;
         console2.log("leaf[0] valid:", MerkleProof.verify(p, root, leaves[0]));
 
-        p[0] = leaves[0]; p[1] = h23;
+        p[0] = leaves[0];
+        p[1] = h23;
         console2.log("leaf[1] valid:", MerkleProof.verify(p, root, leaves[1]));
 
-        p[0] = leaves[3]; p[1] = h01;
+        p[0] = leaves[3];
+        p[1] = h01;
         console2.log("leaf[2] valid:", MerkleProof.verify(p, root, leaves[2]));
 
-        p[0] = leaves[2]; p[1] = h01;
+        p[0] = leaves[2];
+        p[1] = h01;
         console2.log("leaf[3] valid:", MerkleProof.verify(p, root, leaves[3]));
     }
 

@@ -44,22 +44,15 @@ contract SnaxpotTest is Test {
     //   [1] bob   | [9,11,19,21,31]  | snaxBall 4 | idx 0  → matches DRAW_A
     //   [2] alice | [5,9,13,17,21]   | snaxBall 3 | idx 1  → matches DRAW_C
     //   [3] bob   | [1,7,12,20,28]   | snaxBall 2 | idx 1  → matches neither
-    bytes32 constant MERKLE_ROOT =
-        0xd2bfa9184f92b4541c8a5bac90707dac540e56846ee0b828acbf47648203ae9e;
+    bytes32 constant MERKLE_ROOT = 0xd2bfa9184f92b4541c8a5bac90707dac540e56846ee0b828acbf47648203ae9e;
 
-    bytes32 constant LEAF_0 =
-        0x9df0a167364098ea1175a7304fb63e3f2c166e61c5609a9975b116fb9e23d6b3;
-    bytes32 constant LEAF_1 =
-        0x7a2736475d1e90a8e50dc49c2732441be24b234c3e21b41069cb9a50002f1ecf;
-    bytes32 constant LEAF_2 =
-        0xb5d7d2d2e177971f8fb479f830fdfa48d3211c5f0031e4646c00e584fe4415c6;
-    bytes32 constant LEAF_3 =
-        0x315b7e24d032df9ed10ce96f70085398241b7eb20516b300517274f80917cb67;
+    bytes32 constant LEAF_0 = 0x9df0a167364098ea1175a7304fb63e3f2c166e61c5609a9975b116fb9e23d6b3;
+    bytes32 constant LEAF_1 = 0x7a2736475d1e90a8e50dc49c2732441be24b234c3e21b41069cb9a50002f1ecf;
+    bytes32 constant LEAF_2 = 0xb5d7d2d2e177971f8fb479f830fdfa48d3211c5f0031e4646c00e584fe4415c6;
+    bytes32 constant LEAF_3 = 0x315b7e24d032df9ed10ce96f70085398241b7eb20516b300517274f80917cb67;
 
-    bytes32 constant H01 =
-        0x76f1d25323b8ca98b2ca15371dea798cfd7f5b2a2cafbe217869ef217a076bbc;
-    bytes32 constant H23 =
-        0x9bc1b7e3d91372025ba74777763aaa31508f86e365ab2af4e552ad127fa67dec;
+    bytes32 constant H01 = 0x76f1d25323b8ca98b2ca15371dea798cfd7f5b2a2cafbe217869ef217a076bbc;
+    bytes32 constant H23 = 0x9bc1b7e3d91372025ba74777763aaa31508f86e365ab2af4e552ad127fa67dec;
 
     function setUp() public {
         admin = makeAddr("admin");
@@ -71,16 +64,10 @@ contract SnaxpotTest is Test {
         vrfCoordinator = makeAddr("vrfCoordinator");
         jackpotClaimer = makeAddr("jackpotClaimer");
 
-        vm.mockCall(
-            jackpotClaimer,
-            abi.encodeWithSelector(IJackpotClaimer.credit.selector),
-            abi.encode()
-        );
+        vm.mockCall(jackpotClaimer, abi.encodeWithSelector(IJackpotClaimer.credit.selector), abi.encode());
         vm.mockCall(
             vrfCoordinator,
-            abi.encodeWithSelector(
-                IVRFCoordinatorV2Plus.requestRandomWords.selector
-            ),
+            abi.encodeWithSelector(IVRFCoordinatorV2Plus.requestRandomWords.selector),
             abi.encode(VRF_REQUEST_ID)
         );
 
@@ -116,15 +103,11 @@ contract SnaxpotTest is Test {
     //   DRAW_B: words [100, 200, 300, 400, 500, 7] → balls [5, 9, 13, 17, 21], snaxBall 3
     //
     /// @dev Mirrors Snaxpot._deriveBalls so tests can predict winning numbers from VRF words.
-    function _deriveBalls(
-        uint256[] memory randomWords
-    ) internal pure returns (uint8[5] memory balls, uint8 snaxBall) {
+    function _deriveBalls(uint256[] memory randomWords) internal pure returns (uint8[5] memory balls, uint8 snaxBall) {
         uint256 usedMask;
         uint8 count;
         for (uint8 i = 0; count < 5; i++) {
-            uint256 rand = i < 5
-                ? randomWords[i]
-                : uint256(keccak256(abi.encodePacked(randomWords[i - 1], i)));
+            uint256 rand = i < 5 ? randomWords[i] : uint256(keccak256(abi.encodePacked(randomWords[i - 1], i)));
             uint8 ball = uint8((rand % 32) + 1);
             uint256 bit = uint256(1) << ball;
             if (usedMask & bit == 0) {
@@ -233,18 +216,14 @@ contract SnaxpotTest is Test {
             vrfCoordinator,
             abi.encodeCall(
                 IVRFCoordinatorV2Plus.requestRandomWords,
-                (
-                    VRFV2PlusClient.RandomWordsRequest({
+                (VRFV2PlusClient.RandomWordsRequest({
                         keyHash: VRF_KEY_HASH,
                         subId: VRF_SUB_ID,
                         requestConfirmations: VRF_CONFIRMATIONS,
                         callbackGasLimit: VRF_CALLBACK_GAS,
                         numWords: 1,
-                        extraArgs: VRFV2PlusClient._argsToBytes(
-                            VRFV2PlusClient.ExtraArgsV1({nativePayment: false})
-                        )
-                    })
-                )
+                        extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: false}))
+                    }))
             )
         );
 
@@ -324,10 +303,7 @@ contract SnaxpotTest is Test {
         vm.startPrank(operator);
         vm.expectRevert(
             abi.encodeWithSelector(
-                ISnaxpot.InvalidEpochState.selector,
-                1,
-                ISnaxpot.EpochState.NONE,
-                ISnaxpot.EpochState.OPEN
+                ISnaxpot.InvalidEpochState.selector, 1, ISnaxpot.EpochState.NONE, ISnaxpot.EpochState.OPEN
             )
         );
         snaxpot.closeEpoch(1);
@@ -368,18 +344,14 @@ contract SnaxpotTest is Test {
             vrfCoordinator,
             abi.encodeCall(
                 IVRFCoordinatorV2Plus.requestRandomWords,
-                (
-                    VRFV2PlusClient.RandomWordsRequest({
+                (VRFV2PlusClient.RandomWordsRequest({
                         keyHash: VRF_KEY_HASH,
                         subId: VRF_SUB_ID,
                         requestConfirmations: VRF_CONFIRMATIONS,
                         callbackGasLimit: VRF_CALLBACK_GAS,
                         numWords: 6,
-                        extraArgs: VRFV2PlusClient._argsToBytes(
-                            VRFV2PlusClient.ExtraArgsV1({nativePayment: false})
-                        )
-                    })
-                )
+                        extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: false}))
+                    }))
             )
         );
 
@@ -428,10 +400,7 @@ contract SnaxpotTest is Test {
         snaxpot.openEpoch();
         vm.expectRevert(
             abi.encodeWithSelector(
-                ISnaxpot.InvalidEpochState.selector,
-                1,
-                ISnaxpot.EpochState.OPEN,
-                ISnaxpot.EpochState.CLOSED
+                ISnaxpot.InvalidEpochState.selector, 1, ISnaxpot.EpochState.OPEN, ISnaxpot.EpochState.CLOSED
             )
         );
         snaxpot.commitMerkleRootAndDraw(1, MERKLE_ROOT);
@@ -484,17 +453,10 @@ contract SnaxpotTest is Test {
         words[4] = 50;
         words[5] = 3;
 
-        (uint8[5] memory expectedBalls, uint8 expectedSnaxBall) = _deriveBalls(
-            words
-        );
+        (uint8[5] memory expectedBalls, uint8 expectedSnaxBall) = _deriveBalls(words);
 
         vm.expectEmit(true, false, false, true, address(snaxpot));
-        emit ISnaxpot.WinningNumbersDrawn(
-            epochId,
-            expectedBalls,
-            expectedSnaxBall,
-            VRF_REQUEST_ID
-        );
+        emit ISnaxpot.WinningNumbersDrawn(epochId, expectedBalls, expectedSnaxBall, VRF_REQUEST_ID);
 
         _fulfillVrf(words);
 
@@ -519,13 +481,7 @@ contract SnaxpotTest is Test {
         words[0] = 12345;
 
         vm.startPrank(alice);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "OnlyCoordinatorCanFulfill(address,address)",
-                alice,
-                vrfCoordinator
-            )
-        );
+        vm.expectRevert(abi.encodeWithSignature("OnlyCoordinatorCanFulfill(address,address)", alice, vrfCoordinator));
         snaxpot.rawFulfillRandomWords(VRF_REQUEST_ID, words);
         vm.stopPrank();
     }
@@ -537,10 +493,7 @@ contract SnaxpotTest is Test {
         assertEq(epochBefore.jackpotAmount, JACKPOT_FUND);
 
         vm.expectEmit(true, false, false, true, address(snaxpot));
-        emit ISnaxpot.JackpotRolledOver(
-            epochId,
-            uint256(epochBefore.jackpotAmount)
-        );
+        emit ISnaxpot.JackpotRolledOver(epochId, uint256(epochBefore.jackpotAmount));
 
         vm.startPrank(operator);
         snaxpot.resolveJackpotNoWinner(epochId);
@@ -579,19 +532,76 @@ contract SnaxpotTest is Test {
         snaxpot.closeEpoch(1);
         vm.expectRevert(
             abi.encodeWithSelector(
-                ISnaxpot.InvalidEpochState.selector,
-                1,
-                ISnaxpot.EpochState.CLOSED,
-                ISnaxpot.EpochState.DRAWN
+                ISnaxpot.InvalidEpochState.selector, 1, ISnaxpot.EpochState.CLOSED, ISnaxpot.EpochState.DRAWN
             )
         );
         snaxpot.resolveJackpotNoWinner(1);
         vm.stopPrank();
     }
 
-    function test_resolveJackpot_singleWinner() public {}
+    function test_resolveJackpot_singleWinner() public {
+        uint256 epochId = _setUpDrawnEpochSingleWinner();
 
-    function test_resolveJackpot_multipleWinners() public {}
+        uint8[5] memory balls = [uint8(5), 9, 13, 17, 21];
+        uint8 snaxBall = 3;
+
+        ISnaxpot.JackpotWinner[] memory winners = new ISnaxpot.JackpotWinner[](1);
+        bytes32[] memory proof = new bytes32[](2);
+        proof[0] = LEAF_3;
+        proof[1] = H01;
+        winners[0] = ISnaxpot.JackpotWinner({winner: alice, ticketIndex: 1, merkleProof: proof});
+
+        vm.expectCall(jackpotClaimer, abi.encodeCall(IJackpotClaimer.credit, (alice, epochId, JACKPOT_FUND)));
+
+        vm.expectEmit(true, true, false, true, address(snaxpot));
+        emit ISnaxpot.JackpotWon(epochId, alice, JACKPOT_FUND);
+
+        vm.startPrank(operator);
+        snaxpot.resolveJackpot(epochId, balls, snaxBall, winners);
+        vm.stopPrank();
+
+        ISnaxpot.EpochData memory epoch = snaxpot.getEpoch(epochId);
+        assertEq(uint8(epoch.state), uint8(ISnaxpot.EpochState.RESOLVED));
+        assertTrue(epoch.jackpotClaimed);
+        assertEq(snaxpot.totalAccountedUSDT(), 0);
+    }
+
+    function test_resolveJackpot_multipleWinners() public {
+        uint256 epochId = _setUpDrawnEpochMultiWinner();
+
+        uint8[5] memory balls = [uint8(9), 11, 19, 21, 31];
+        uint8 snaxBall = 4;
+        uint256 share = JACKPOT_FUND / 2;
+
+        ISnaxpot.JackpotWinner[] memory winners = new ISnaxpot.JackpotWinner[](2);
+
+        bytes32[] memory proof0 = new bytes32[](2);
+        proof0[0] = LEAF_1;
+        proof0[1] = H23;
+        winners[0] = ISnaxpot.JackpotWinner({winner: alice, ticketIndex: 0, merkleProof: proof0});
+
+        bytes32[] memory proof1 = new bytes32[](2);
+        proof1[0] = LEAF_0;
+        proof1[1] = H23;
+        winners[1] = ISnaxpot.JackpotWinner({winner: bob, ticketIndex: 0, merkleProof: proof1});
+
+        vm.expectCall(jackpotClaimer, abi.encodeCall(IJackpotClaimer.credit, (alice, epochId, share)));
+        vm.expectCall(jackpotClaimer, abi.encodeCall(IJackpotClaimer.credit, (bob, epochId, share)));
+
+        vm.expectEmit(true, true, false, true, address(snaxpot));
+        emit ISnaxpot.JackpotWon(epochId, alice, share);
+        vm.expectEmit(true, true, false, true, address(snaxpot));
+        emit ISnaxpot.JackpotWon(epochId, bob, share);
+
+        vm.startPrank(operator);
+        snaxpot.resolveJackpot(epochId, balls, snaxBall, winners);
+        vm.stopPrank();
+
+        ISnaxpot.EpochData memory epoch = snaxpot.getEpoch(epochId);
+        assertEq(uint8(epoch.state), uint8(ISnaxpot.EpochState.RESOLVED));
+        assertTrue(epoch.jackpotClaimed);
+        assertEq(snaxpot.totalAccountedUSDT(), 0);
+    }
 
     function test_resolveJackpot_whenNotOperator_reverts() public {}
 

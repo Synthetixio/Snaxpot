@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 interface ISnaxpot {
+    // ─── Models ─────────────────────────────────────────────────────
     enum EpochState {
         NONE,
         OPEN,
@@ -34,15 +35,6 @@ interface ISnaxpot {
         bool jackpotClaimed;
     }
 
-    // ─── Errors ──────────────────────────────────────────────────────
-    error ContractPaused();
-    error InvalidEpochState(uint256 epochId, EpochState current, EpochState expected);
-    error CannotWithdrawUSDT();
-    error ZeroMerkleRoot();
-    error WinningNumbersMismatch();
-    error InvalidMerkleProof();
-    error NoWinners();
-
     struct JackpotWinner {
         address winner;
         uint256 ticketIndex;
@@ -56,6 +48,16 @@ interface ISnaxpot {
         uint256 ticketIndex;
     }
 
+    // ─── Errors ──────────────────────────────────────────────────────
+    error ContractPaused();
+    error InvalidEpochState(uint256 epochId, EpochState current, EpochState expected);
+    error CannotWithdrawUSDT();
+    error ZeroMerkleRoot();
+    error WinningNumbersMismatch();
+    error InvalidMerkleProof();
+    error NoWinners();
+
+    // ─── Events ──────────────────────────────────────────────────────
     event EpochOpened(uint256 indexed epochId, uint256 vrfSeed, uint256 startTimestamp);
     event EpochClosed(uint256 indexed epochId, uint64 jackpotAmount, uint256 closeTimestamp);
     event MerkleRootCommitted(uint256 indexed epochId, bytes32 root);
@@ -108,6 +110,8 @@ interface ISnaxpot {
 
     // ─── View ────────────────────────────────────────────────────────
     function getEpoch(uint256 epochId) external view returns (EpochData memory);
+
     function getVrfRequestEpoch(uint256 requestId) external view returns (uint256);
+
     function getVrfRequestType(uint256 requestId) external view returns (VrfRequestType);
 }
