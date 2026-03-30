@@ -447,11 +447,88 @@ contract SnaxpotTest is Test {
         vm.stopPrank();
     }
 
-    function test_fulfillRandomWords_seed_setsVrfSeedAndEmits() public {}
+    function test_fulfillRandomWords_seed_happyPath() public {
+        vm.startPrank(operator);
+        snaxpot.openEpoch();
+        vm.stopPrank();
 
-    function test_fulfillRandomWords_draw_happyPath() public {}
+        uint256 epochId = snaxpot.currentEpochId();
+        ISnaxpot.EpochData memory epochBefore = snaxpot.getEpoch(epochId);
 
-    function test_fulfillRandomWords_whenNotCoordinator_reverts() public {}
+        uint256[] memory words = new uint256[](1);
+        words[0] = 12345;
+
+        vm.expectEmit(true, false, false, true, address(snaxpot));
+        emit ISnaxpot.EpochOpened(epochId, 12345, epochBefore.startTimestamp);
+
+        _fulfillVrf(words);
+
+        ISnaxpot.EpochData memory epoch = snaxpot.getEpoch(epochId);
+        assertEq(epoch.vrfSeed, 12345);
+        assertEq(snaxpot.getVrfRequestEpoch(VRF_REQUEST_ID), 0);
+    }
+
+    function test_fulfillRandomWords_draw_happyPath() public {
+        vm.startPrank(operator);
+        snaxpot.openEpoch();
+        uint256 epochId = snaxpot.currentEpochId();
+        snaxpot.closeEpoch(epochId);
+        snaxpot.commitMerkleRootAndDraw(epochId, MERKLE_ROOT);
+        vm.stopPrank();
+
+        uint256[] memory words = new uint256[](6);
+        words[0] = 10;
+        words[1] = 20;
+        words[2] = 30;
+        words[3] = 40;
+        words[4] = 50;
+        words[5] = 3;
+
+        (uint8[5] memory expectedBalls, uint8 expectedSnaxBall) = _deriveBalls(
+            words
+        );
+
+        vm.expectEmit(true, false, false, true, address(snaxpot));
+        emit ISnaxpot.WinningNumbersDrawn(
+            epochId,
+            expectedBalls,
+            expectedSnaxBall,
+            VRF_REQUEST_ID
+        );
+
+        _fulfillVrf(words);
+
+        ISnaxpot.EpochData memory epoch = snaxpot.getEpoch(epochId);
+        assertEq(uint8(epoch.state), uint8(ISnaxpot.EpochState.DRAWN));
+        assertEq(epoch.winningBall1, expectedBalls[0]);
+        assertEq(epoch.winningBall2, expectedBalls[1]);
+        assertEq(epoch.winningBall3, expectedBalls[2]);
+        assertEq(epoch.winningBall4, expectedBalls[3]);
+        assertEq(epoch.winningBall5, expectedBalls[4]);
+        assertEq(epoch.winningSnaxBall, expectedSnaxBall);
+        assertEq(snaxpot.getVrfRequestEpoch(VRF_REQUEST_ID), 0);
+        assertEq(uint8(snaxpot.getVrfRequestType(VRF_REQUEST_ID)), 0);
+    }
+
+    function test_fulfillRandomWords_whenNotCoordinator_reverts() public {
+        vm.startPrank(operator);
+        snaxpot.openEpoch();
+        vm.stopPrank();
+
+        uint256[] memory words = new uint256[](1);
+        words[0] = 12345;
+
+        vm.startPrank(alice);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "OnlyCoordinatorCanFulfill(address,address)",
+                alice,
+                vrfCoordinator
+            )
+        );
+        snaxpot.rawFulfillRandomWords(VRF_REQUEST_ID, words);
+        vm.stopPrank();
+    }
 
     function test_resolveJackpotNoWinner_happyPath() public {
         uint256 epochId = _setUpDrawnEpochNoWinner();
