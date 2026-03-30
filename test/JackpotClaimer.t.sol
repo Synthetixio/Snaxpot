@@ -32,6 +32,7 @@ contract JackpotClaimerTest is Test {
 
     function _creditAlice(uint256 amount) internal {
         usdt.mint(snaxpotAddr, amount);
+
         vm.startPrank(snaxpotAddr);
         usdt.approve(address(jackpotClaimer), amount);
         jackpotClaimer.credit(alice, 1, amount);
@@ -67,8 +68,8 @@ contract JackpotClaimerTest is Test {
 
     function test_credit_accumulates() public {
         _creditAlice(500e6);
-
         usdt.mint(snaxpotAddr, 200e6);
+
         vm.startPrank(snaxpotAddr);
         usdt.approve(address(jackpotClaimer), 200e6);
         jackpotClaimer.credit(alice, 2, 200e6);
@@ -130,6 +131,7 @@ contract JackpotClaimerTest is Test {
 
     function test_sweepExpired_whenNotAdmin_reverts() public {
         _creditAlice(500e6);
+
         vm.warp(block.timestamp + 90 days + 1);
 
         vm.prank(alice);

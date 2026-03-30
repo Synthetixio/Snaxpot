@@ -70,11 +70,9 @@ contract PrizeDistributorTest is Test {
         address[] memory winners = new address[](2);
         winners[0] = alice;
         winners[1] = bob;
-
         uint256[] memory amounts = new uint256[](2);
         amounts[0] = 500e6;
         amounts[1] = 200e6;
-
         uint256[] memory subAccountIds = new uint256[](2);
         subAccountIds[0] = 1;
         subAccountIds[1] = 2;
