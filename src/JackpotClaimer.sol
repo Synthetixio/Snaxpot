@@ -40,12 +40,14 @@ contract JackpotClaimer is IJackpotClaimer {
     function credit(address winner, uint256 epochId, uint256 amount) external override onlySnaxpot {
         if (amount == 0) revert ZeroAmount();
 
+        uint256 balBefore = usdt.balanceOf(address(this));
         usdt.safeTransferFrom(msg.sender, address(this), amount);
+        uint256 received = usdt.balanceOf(address(this)) - balBefore;
 
-        balances[winner] += amount;
+        balances[winner] += received;
         expiresAt[winner] = block.timestamp + CLAIM_WINDOW;
 
-        emit Credited(winner, epochId, amount, expiresAt[winner]);
+        emit Credited(winner, epochId, received, expiresAt[winner]);
     }
 
     function claim() external override {

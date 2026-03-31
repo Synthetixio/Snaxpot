@@ -30,8 +30,10 @@ contract PrizeDistributor is IPrizeDistributor, AccessControl {
 
     function fund(uint256 amount) external {
         if (amount == 0) revert ZeroAmount();
+        uint256 balBefore = usdt.balanceOf(address(this));
         usdt.safeTransferFrom(msg.sender, address(this), amount);
-        emit PrizePoolFunded(amount);
+        uint256 received = usdt.balanceOf(address(this)) - balBefore;
+        emit PrizePoolFunded(received);
     }
 
     function distribute(address[] calldata winners, uint256[] calldata amounts, uint256[] calldata subAccountIds)

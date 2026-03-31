@@ -11,6 +11,6 @@ VRF Failures - Fix by adding admin hatches
 
 USDT Blacklist and Fee
 Fee-on-transfer (M-01 + M-03)
--Very low likelyhood but so simple to fix we will do it
+-Fixed
 Blocklist (M-02)
 -Not needed

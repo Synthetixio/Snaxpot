@@ -312,8 +312,8 @@ contract Snaxpot is
     /// @notice Credit any USDT surplus (direct transfers) to the jackpot.
     function reconcileUSDT() external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 actual = usdt.balanceOf(address(this));
-        uint256 surplus = actual - totalAccountedUSDT;
-        if (surplus > 0) {
+        if (actual > totalAccountedUSDT) {
+            uint256 surplus = actual - totalAccountedUSDT;
             currentJackpot += surplus;
             totalAccountedUSDT += surplus;
             emit JackpotFunded(surplus, currentJackpot);
@@ -323,10 +323,12 @@ contract Snaxpot is
     // ─── External ────────────────────────────────────────────────────
 
     function fundJackpot(uint256 amount) external whenNotPaused {
+        uint256 balBefore = usdt.balanceOf(address(this));
         usdt.safeTransferFrom(msg.sender, address(this), amount);
-        currentJackpot += amount;
-        totalAccountedUSDT += amount;
-        emit JackpotFunded(amount, currentJackpot);
+        uint256 received = usdt.balanceOf(address(this)) - balBefore;
+        currentJackpot += received;
+        totalAccountedUSDT += received;
+        emit JackpotFunded(received, currentJackpot);
     }
 
     // ─── VRF ──────────────────────────────────────────────────────────
