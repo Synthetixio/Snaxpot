@@ -4,7 +4,7 @@
 
 ### [I-01] Division dust permanently stranded in totalAccountedUSDT -- code comment incorrect
 
--Need to fix
+-Fixed
 
 VRF Failures - Fix by adding admin hatches
 -Low likelyhood and can just add when it happens

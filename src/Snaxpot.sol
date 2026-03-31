@@ -207,8 +207,7 @@ contract Snaxpot is
 
         // Integer division may leave dust; reconcileUSDT() sweeps it later.
         uint256 share = epoch.jackpotAmount / winners.length;
-        uint256 paid = share * winners.length;
-        totalAccountedUSDT -= paid;
+        totalAccountedUSDT -= epoch.jackpotAmount;
 
         for (uint256 i; i < winners.length; i++) {
             usdt.forceApprove(address(jackpotClaimer), share);
